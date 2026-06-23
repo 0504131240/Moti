@@ -450,7 +450,7 @@ function rMon(){
 function rExpMod(){
   let selCat=S.cats[0]?.id||null;
   let selSub=null;
-  let _desc='',_amt='',_date=today(),_rec=false;
+  let _desc='',_amt='',_date=today(),_rec=false,_inst=1;
   function build(){
     const catBtns=S.cats.map(cat=>{
       const sel=selCat===cat.id;
@@ -484,6 +484,13 @@ function rExpMod(){
           <input class="inp" id="expDt" type="date" value="${_date}"/>
         </div>
       </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:14px">
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:5px;letter-spacing:.5px">תשלומים</div>
+          <input class="inp" id="expInst" type="number" min="1" max="60" placeholder="1" style="text-align:center;font-size:18px;font-weight:700;color:#6366f1" value="${_inst}"/>
+        </div>
+        <div style="flex:2;padding-bottom:2px;font-size:11px;color:#94a3b8;line-height:1.5">פיצול לחודשים עוקבים<br/>(1 = ללא פיצול)</div>
+      </div>
       <label style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:#f8faff;border:1px solid #e2e8f0;cursor:pointer;margin-bottom:16px">
         <input type="checkbox" id="expRec" style="width:18px;height:18px;accent-color:#6366f1;flex-shrink:0" ${_rec?'checked':''}/>
         <div style="flex:1">
@@ -503,6 +510,7 @@ function rExpMod(){
       const desc=(g("expD").value||"").trim();
       const date=g("expDt").value||today();
       const isRec=g("expRec").checked;
+      const inst=Math.max(1,parseInt(g("expInst").value)||1);
       const baseId=Date.now();
       const subCat=selSub||null;
       if(isRec){
@@ -514,6 +522,27 @@ function rExpMod(){
           if(entries.some(e=>e.id===relId))return undefined;
           return[...entries,{id:relId,desc,amount:a,date:adjDate(date,m,fy),recurring:true,subCat}];
         });
+      } else if(inst>1){
+        const perMonth=Math.round(a/inst*100)/100;
+        for(let i=0;i<inst;i++){
+          const tMonth=(S.month+i)%12;
+          const tYear=S.year+Math.floor((S.month+i)/12);
+          const entryDate=adjDate(date,tMonth,tYear);
+          const entryDesc=desc?(desc+' ('+(i+1)+'/'+inst+')'):(''+(i+1)+'/'+inst);
+          if(tYear===S.year){
+            if(!S.mData[tMonth])S.mData[tMonth]={};
+            if(!S.mData[tMonth][selCat])S.mData[tMonth][selCat]={entries:[]};
+            S.mData[tMonth][selCat].entries.push({id:baseId+i*1000,desc:entryDesc,amount:perMonth,date:entryDate,recurring:false,subCat});
+          } else {
+            const fKey='bdg_v4_'+CUR_UID+'_'+tYear;
+            let fData=JSON.parse(localStorage.getItem(fKey)||'{}');
+            if(!fData[tMonth])fData[tMonth]={};
+            if(!fData[tMonth][selCat])fData[tMonth][selCat]={entries:[]};
+            fData[tMonth][selCat].entries.push({id:baseId+i*1000,desc:entryDesc,amount:perMonth,date:entryDate,recurring:false,subCat});
+            localStorage.setItem(fKey,JSON.stringify(fData));
+          }
+        }
+        sv();
       } else {
         S.mData[S.month][selCat].entries.push({id:baseId,desc,amount:a,date,recurring:false,subCat});
         sv();
@@ -522,12 +551,12 @@ function rExpMod(){
     };
     g("expA").onkeydown=e=>{if(e.key==="Enter")g("expSave").click();};
     document.querySelectorAll(".expCat").forEach(b=>b.onclick=()=>{
-      _desc=(g("expD")?.value||"");_amt=(g("expA")?.value||"");_date=(g("expDt")?.value||today());_rec=(g("expRec")?.checked||false);
+      _desc=(g("expD")?.value||"");_amt=(g("expA")?.value||"");_date=(g("expDt")?.value||today());_rec=(g("expRec")?.checked||false);_inst=parseInt(g("expInst")?.value)||1;
       selCat=parseInt(b.dataset.c);selSub=null;build();
       requestAnimationFrame(()=>{const el=g("expA");if(el)el.focus();});
     });
     document.querySelectorAll(".expSub").forEach(b=>b.onclick=()=>{
-      _desc=(g("expD")?.value||"");_amt=(g("expA")?.value||"");_date=(g("expDt")?.value||today());_rec=(g("expRec")?.checked||false);
+      _desc=(g("expD")?.value||"");_amt=(g("expA")?.value||"");_date=(g("expDt")?.value||today());_rec=(g("expRec")?.checked||false);_inst=parseInt(g("expInst")?.value)||1;
       const sid=parseInt(b.dataset.s);selSub=selSub===sid?null:sid;build();
     });
   }
