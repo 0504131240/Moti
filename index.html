@@ -201,9 +201,9 @@ function rLineChart(){
   const vals=Array.from({length:12},(_,m)=>mt(m));
   const max=Math.max(...vals,1);
   const W=300,H=110,px=10,py=8,bh=16,iw=280,ih=H-py-bh;
-  const pts=vals.map((v,i)=>{const x=px+i*(iw/11);const y=py+ih-(v/max)*ih;return[x,y];});
+  const pts=vals.map((v,i)=>{const x=px+(11-i)*(iw/11);const y=py+ih-(v/max)*ih;return[x,y];});
   const line=pts.map(p=>p.join(',')).join(' ');
-  const area=`${px},${py+ih} ${line} ${W-px},${py+ih}`;
+  const area=`${W-px},${py+ih} ${line} ${px},${py+ih}`;
   const [cx,cy]=pts[S.month];
   const lbls=MO.map((m,i)=>{const[x]=pts[i];return`<text x="${x.toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="8" fill="${i===S.month?'#6366f1':'#94a3b8'}">${m[0]}</text>`;}).join('');
   const dots=pts.map(([x,y],i)=>`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${i===S.month?5:2.5}" fill="${i===S.month?'#6366f1':'#8b5cf6'}" stroke="#fff" stroke-width="1.5"/>`).join('');
@@ -262,7 +262,7 @@ function rSparklines(){
   </div>`;
 }
 function rIncVsExp(){
-  const idxs=Array.from({length:6},(_,i)=>(S.month-5+i+12)%12);
+  const idxs=Array.from({length:6},(_,i)=>(S.month-i+12)%12);
   const iv=idxs.map(m=>incT(m)),ev=idxs.map(m=>mt(m));
   const max=Math.max(...iv,...ev,1);
   const W=300,H=110,px=6,py=8,bh=16,iw=288,ih=H-py-bh;
