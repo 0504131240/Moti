@@ -436,7 +436,7 @@ function rMon(){
   document.querySelectorAll(".fBtn").forEach(b=>b.onclick=()=>{S.expFilter=b.dataset.f;rMon();});
   document.querySelectorAll(".chartDot").forEach(b=>b.onclick=()=>{S.chartIdx=parseInt(b.dataset.i);rMon();});
   const cc=g("chartCarousel");
-  if(cc){let _cx=0,_cy=0;cc.addEventListener("touchstart",e=>{_cx=e.touches[0].clientX;_cy=e.touches[0].clientY;},{passive:true});cc.addEventListener("touchend",e=>{const dx=_cx-e.changedTouches[0].clientX,dy=Math.abs(_cy-e.changedTouches[0].clientY);if(Math.abs(dx)>40&&dy<80){if(dx>0)S.chartIdx=Math.min(S.chartIdx+1,4);else S.chartIdx=Math.max(S.chartIdx-1,0);rMon();}},{passive:true});}
+  if(cc){let _cx=0,_cy=0;cc.addEventListener("touchstart",e=>{_cx=e.touches[0].clientX;_cy=e.touches[0].clientY;},{passive:true});cc.addEventListener("touchend",e=>{const dx=_cx-e.changedTouches[0].clientX,dy=Math.abs(_cy-e.changedTouches[0].clientY);if(Math.abs(dx)>40&&dy<80){if(dx>0)S.chartIdx=Math.max(S.chartIdx-1,0);else S.chartIdx=Math.min(S.chartIdx+1,4);rMon();}},{passive:true});}
   document.querySelectorAll(".oE").forEach(b=>b.onclick=()=>{S.aCat=parseInt(b.dataset.c);S.editEntId=null;rEntMod();});
   document.querySelectorAll(".eC").forEach(b=>b.onclick=e=>{e.stopPropagation();S.eCat={...S.cats.find(c=>c.id===parseInt(b.dataset.c))};rEditMod();});
   document.querySelectorAll(".dC").forEach(b=>b.onclick=e=>{e.stopPropagation();if(confirm("למחוק?")){S.cats=S.cats.filter(c=>c.id!==parseInt(b.dataset.c));sv();rMon();}});
