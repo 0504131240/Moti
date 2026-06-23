@@ -258,7 +258,7 @@ function rSparklines(){
   }).join('');
   return`<div style="background:#faf5ff;border-radius:14px;padding:12px 14px;border:1px solid #ddd6fe">
     <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:10px">&#10024; מגמות 6 חודשים</div>
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${items}</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:220px;overflow-y:auto;padding-bottom:2px">${items}</div>
   </div>`;
 }
 function rIncVsExp(){
