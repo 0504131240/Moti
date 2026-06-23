@@ -94,8 +94,8 @@ const DF=[
   {id:5,name:"חינוך",budget:1500,color:"#8b5cf6"},
 ];
 
-let S={year:new Date().getFullYear(),month:new Date().getMonth(),view:"monthly",cats:[],mData:{},aCat:null,eCat:null,nc:{name:"",budget:"",color:"#6366f1"},sortEnt:"date",editEntId:null,expFilter:"variable"};
-let deferredPrompt=null,touchStartX=0,touchStartY=0;
+let S={year:new Date().getFullYear(),month:new Date().getMonth(),view:"monthly",cats:[],mData:{},aCat:null,eCat:null,nc:{name:"",budget:"",color:"#6366f1"},sortEnt:"date",editEntId:null,expFilter:"variable",chartIdx:0};
+let deferredPrompt=null,touchStartX=0,touchStartY=0,touchStartTarget=null;
 
 function sk(y){return"bdg_v4_"+CUR_UID+"_"+y;}
 function iMD(c){const m={};for(let i=0;i<12;i++){m[i]={income:[]};c.forEach(x=>{m[i][x.id]={entries:[]};});}return m;}
@@ -188,11 +188,107 @@ function rPie(){
     else{const x1=(cx+r*Math.cos(sa)).toFixed(1),y1=(cy+r*Math.sin(sa)).toFixed(1),x2=(cx+r*Math.cos(angle)).toFixed(1),y2=(cy+r*Math.sin(angle)).toFixed(1);paths+=`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${pct>0.5?1:0},1 ${x2},${y2} Z" fill="${s.cat.color}"/>`;}
     legend+=`<div style="display:flex;align-items:center;gap:4px"><div style="width:7px;height:7px;border-radius:50%;background:${s.cat.color};flex-shrink:0"></div><span style="font-size:10px;color:#64748b">${s.cat.name}</span><span style="font-size:10px;font-weight:700;color:#1e293b">${Math.round(pct*100)}%</span></div>`;
   });
-  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;margin-bottom:14px;border:1px solid #ddd6fe">
+  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
     <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:10px">&#128202; פילוח הוצאות</div>
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <svg viewBox="0 0 124 124" width="100" height="100" style="flex-shrink:0">${paths}</svg>
       <div style="display:flex;flex-direction:column;gap:5px">${legend}</div>
+    </div>
+  </div>`;
+}
+
+function rLineChart(){
+  const vals=Array.from({length:12},(_,m)=>mt(m));
+  const max=Math.max(...vals,1);
+  const W=300,H=110,px=10,py=8,bh=16,iw=280,ih=H-py-bh;
+  const pts=vals.map((v,i)=>{const x=px+i*(iw/11);const y=py+ih-(v/max)*ih;return[x,y];});
+  const line=pts.map(p=>p.join(',')).join(' ');
+  const area=`${px},${py+ih} ${line} ${W-px},${py+ih}`;
+  const [cx,cy]=pts[S.month];
+  const lbls=MO.map((m,i)=>{const[x]=pts[i];return`<text x="${x.toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="8" fill="${i===S.month?'#6366f1':'#94a3b8'}">${m[0]}</text>`;}).join('');
+  const dots=pts.map(([x,y],i)=>`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${i===S.month?5:2.5}" fill="${i===S.month?'#6366f1':'#8b5cf6'}" stroke="#fff" stroke-width="1.5"/>`).join('');
+  const tip=vals[S.month]?`<text x="${cx.toFixed(1)}" y="${(cy-9).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#6366f1">&#8362;${fm(vals[S.month])}</text>`:'';
+  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
+    <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#128200; מגמת הוצאות שנתית</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">
+      <defs><linearGradient id="lgA" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366f1" stop-opacity=".25"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>
+      <polygon points="${area}" fill="url(#lgA)"/>
+      <polyline points="${line}" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}${tip}${lbls}
+    </svg>
+  </div>`;
+}
+function rStackedBar(){
+  const W=300,H=110,px=6,py=8,bh=16,iw=288,ih=H-py-bh;
+  const max=Math.max(...Array.from({length:12},(_,m)=>mt(m)),1);
+  const slot=iw/12,bw=slot-3;
+  const bars=Array.from({length:12},(_,m)=>{const x=px+m*slot+1.5;let y=py+ih;return S.cats.map(cat=>{const v=ct(m,cat.id);if(!v)return'';const h=(v/max)*ih;y-=h;return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${cat.color}" rx="1" opacity="${m===S.month?1:.65}"/>`;}).join('');}).join('');
+  const lbls=MO.map((mo,i)=>`<text x="${(px+i*slot+slot/2).toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="8" fill="${i===S.month?'#6366f1':'#94a3b8'}">${mo[0]}</text>`).join('');
+  const legend=S.cats.map(cat=>`<div style="display:flex;align-items:center;gap:3px"><div style="width:6px;height:6px;border-radius:2px;background:${cat.color}"></div><span style="font-size:9px;color:#64748b">${cat.name}</span></div>`).join('');
+  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
+    <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#128293; הוצאות לפי חודש</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">
+      <rect x="${(px+S.month*slot).toFixed(1)}" y="${py}" width="${slot.toFixed(1)}" height="${ih}" fill="#6366f1" rx="2" opacity=".08"/>
+      ${bars}${lbls}
+    </svg>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${legend}</div>
+  </div>`;
+}
+function rSparklines(){
+  const idxs=Array.from({length:6},(_,i)=>(S.month-5+i+12)%12);
+  const items=S.cats.map(cat=>{
+    const vals=idxs.map(m=>ct(m,cat.id));
+    const max=Math.max(...vals,1);
+    const W=80,H=32;
+    const pts=vals.map((v,i)=>`${(4+i*14).toFixed(0)},${(H-4-(v/max)*(H-8)).toFixed(1)}`).join(' ');
+    const curr=vals[5],prev=vals[4];
+    let tr='';
+    if(prev&&curr){const p=Math.round(((curr-prev)/prev)*100);if(p>5)tr=`<span style="font-size:9px;color:#ef4444">&#9650;${p}%</span>`;else if(p<-5)tr=`<span style="font-size:9px;color:#10b981">&#9660;${Math.abs(p)}%</span>`;}
+    return`<div style="flex:1;min-width:120px;background:#fff;border-radius:10px;padding:7px 8px;border:1px solid #e2e8f0">
+      <div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">
+        <div style="width:5px;height:5px;border-radius:50%;background:${cat.color}"></div>
+        <span style="font-size:10px;font-weight:700;color:#1e293b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat.name}</span>${tr}
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+        <polyline points="${pts}" fill="none" stroke="${cat.color}" stroke-width="1.5" stroke-linejoin="round"/>
+        ${vals.map((v,i)=>`<circle cx="${(4+i*14).toFixed(0)}" cy="${(H-4-(v/max)*(H-8)).toFixed(1)}" r="${i===5?3:1.5}" fill="${cat.color}"/>`).join('')}
+      </svg>
+      <div style="font-size:11px;font-weight:700;color:#6366f1;text-align:center">&#8362;${fm(curr)}</div>
+    </div>`;
+  }).join('');
+  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
+    <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#10024; מגמות 6 חודשים</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${items}</div>
+  </div>`;
+}
+function rIncVsExp(){
+  const idxs=Array.from({length:6},(_,i)=>(S.month-5+i+12)%12);
+  const iv=idxs.map(m=>incT(m)),ev=idxs.map(m=>mt(m));
+  const max=Math.max(...iv,...ev,1);
+  const W=300,H=110,px=6,py=8,bh=16,iw=288,ih=H-py-bh;
+  const slot=iw/6,bw=(slot-6)/2;
+  const bars=idxs.map((m,i)=>{const x=px+i*slot;const h1=(iv[i]/max)*ih,h2=(ev[i]/max)*ih;return`<rect x="${(x+1).toFixed(1)}" y="${(py+ih-h1).toFixed(1)}" width="${bw.toFixed(1)}" height="${h1.toFixed(1)}" fill="#10b981" rx="2" opacity="${m===S.month?1:.7}"/><rect x="${(x+bw+4).toFixed(1)}" y="${(py+ih-h2).toFixed(1)}" width="${bw.toFixed(1)}" height="${h2.toFixed(1)}" fill="#6366f1" rx="2" opacity="${m===S.month?1:.7}"/>`;}).join('');
+  const lbls=idxs.map((m,i)=>`<text x="${(px+i*slot+slot/2).toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="9" fill="${m===S.month?'#6366f1':'#94a3b8'}">${MO[m].substring(0,3)}</text>`).join('');
+  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
+    <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#128176; הכנסות מול הוצאות</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${bars}${lbls}</svg>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:6px">
+      <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#10b981"></div><span style="font-size:10px;color:#64748b">הכנסה</span></div>
+      <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#6366f1"></div><span style="font-size:10px;color:#64748b">הוצאה</span></div>
+    </div>
+  </div>`;
+}
+function rCharts(){
+  const slides=[rPie(),rLineChart(),rStackedBar(),rSparklines(),rIncVsExp()];
+  const labels=['&#128202; פילוח','&#128200; מגמה','&#128293; חודשי','&#10024; קטגוריות','&#128176; הכנסות'];
+  return`<div style="margin-bottom:14px">
+    <div id="chartCarousel" style="overflow:hidden;border-radius:14px;touch-action:pan-y">
+      <div id="chartTrack" style="display:flex;direction:ltr;transform:translateX(${S.chartIdx*-100}%);transition:transform .3s ease">
+        ${slides.map(s=>`<div style="min-width:100%;flex-shrink:0;direction:rtl">${s}</div>`).join('')}
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:4px;margin-top:8px;flex-wrap:wrap">
+      ${labels.map((l,i)=>`<div class="chartDot" data-i="${i}" style="padding:3px 8px;border-radius:12px;font-size:10px;font-weight:${S.chartIdx===i?700:400};background:${S.chartIdx===i?'#eef2ff':'transparent'};color:${S.chartIdx===i?'#6366f1':'#94a3b8'};cursor:pointer;border:1px solid ${S.chartIdx===i?'#c7d2fe':'transparent'}">${l}</div>`).join('')}
     </div>
   </div>`;
 }
@@ -324,7 +420,7 @@ function rMon(){
   ih("cnt",`
     ${monNav}
     ${incomeSec}
-    ${rPie()}
+    ${rCharts()}
     <div style="background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;border:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
       <span style="color:#64748b;font-size:13px">סה&quot;כ ${filtLabel} ${MO[S.month]}</span>
       <span style="font-size:20px;font-weight:800;color:#6366f1">&#8362;${fm(filtTotal)}</span>
@@ -338,6 +434,9 @@ function rMon(){
   g("nextMon").onclick=()=>{if(S.month===11){S.month=0;S.year++;ld();fbListen(S.year);}else{S.month++;}rAll();};
   if(!isNow&&g("todayBtn"))g("todayBtn").onclick=()=>{S.month=nowM;S.year=nowY;ld();fbListen(S.year);rAll();};
   document.querySelectorAll(".fBtn").forEach(b=>b.onclick=()=>{S.expFilter=b.dataset.f;rMon();});
+  document.querySelectorAll(".chartDot").forEach(b=>b.onclick=()=>{S.chartIdx=parseInt(b.dataset.i);rMon();});
+  const cc=g("chartCarousel");
+  if(cc){let _cx=0,_cy=0;cc.addEventListener("touchstart",e=>{_cx=e.touches[0].clientX;_cy=e.touches[0].clientY;},{passive:true});cc.addEventListener("touchend",e=>{const dx=_cx-e.changedTouches[0].clientX,dy=Math.abs(_cy-e.changedTouches[0].clientY);if(Math.abs(dx)>40&&dy<80){if(dx>0)S.chartIdx=Math.min(S.chartIdx+1,4);else S.chartIdx=Math.max(S.chartIdx-1,0);rMon();}},{passive:true});}
   document.querySelectorAll(".oE").forEach(b=>b.onclick=()=>{S.aCat=parseInt(b.dataset.c);S.editEntId=null;rEntMod();});
   document.querySelectorAll(".eC").forEach(b=>b.onclick=e=>{e.stopPropagation();S.eCat={...S.cats.find(c=>c.id===parseInt(b.dataset.c))};rEditMod();});
   document.querySelectorAll(".dC").forEach(b=>b.onclick=e=>{e.stopPropagation();if(confirm("למחוק?")){S.cats=S.cats.filter(c=>c.id!==parseInt(b.dataset.c));sv();rMon();}});
@@ -834,9 +933,11 @@ function doCSV(){
 function rAll(){rHdr();rTlb();rCnt();}
 
 const cntEl=document.getElementById("cnt");
-cntEl.addEventListener("touchstart",e=>{touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;},{passive:true});
+cntEl.addEventListener("touchstart",e=>{touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;touchStartTarget=e.target;},{passive:true});
 cntEl.addEventListener("touchend",e=>{
   if(S.view!=="monthly")return;
+  const cc2=document.getElementById("chartCarousel");
+  if(cc2&&(cc2.contains(touchStartTarget)||(touchStartTarget&&!document.body.contains(touchStartTarget))))return;
   const dx=touchStartX-e.changedTouches[0].clientX,dy=Math.abs(touchStartY-e.changedTouches[0].clientY);
   if(Math.abs(dx)>60&&dy<80){
     if(dx>0){if(S.month===0){S.month=11;S.year--;ld();fbListen(S.year);}else{S.month--;}}
