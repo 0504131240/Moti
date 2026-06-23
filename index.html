@@ -414,7 +414,8 @@ function rMon(){
   // Summary total based on filter
   const filtTotal=filt==='all'?expTotal:visCats.reduce((s,c)=>{
     const e=S.mData[S.month]?.[c.id]?.entries||[];
-    return s+e.reduce((ss,x)=>ss+(parseFloat(x.amount)||0),0);
+    const fe=filt==='recurring'?e.filter(x=>x.recurring):e.filter(x=>!x.recurring);
+    return s+fe.reduce((ss,x)=>ss+(parseFloat(x.amount)||0),0);
   },0);
   const filtLabel=filt==='all'?'הוצאות':filt==='recurring'?'קבועות':'משתנות';
 
