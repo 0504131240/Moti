@@ -376,7 +376,7 @@ function rMon(){
   </div>`;
 
   // Cards with filter applied
-  const visCats=filt==='variable'?S.cats.filter(c=>!c.isRecurring):filt==='recurring'?S.cats.filter(c=>c.isRecurring):S.cats;
+  const visCats=filt==='variable'?S.cats.filter(c=>!c.isRecurring):filt==='recurring'?S.cats.filter(c=>c.isRecurring||(S.mData[S.month]?.[c.id]?.entries||[]).some(e=>e.recurring)):S.cats;
   const cards=visCats.map(cat=>{
     const allEnt=S.mData[S.month]?.[cat.id]?.entries||[];
     const ent=filt==='all'?allEnt:filt==='recurring'?allEnt.filter(e=>e.recurring):allEnt.filter(e=>!e.recurring);
