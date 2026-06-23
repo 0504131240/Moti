@@ -208,7 +208,7 @@ function rLineChart(){
   const lbls=MO.map((m,i)=>{const[x]=pts[i];return`<text x="${x.toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="8" fill="${i===S.month?'#6366f1':'#94a3b8'}">${m[0]}</text>`;}).join('');
   const dots=pts.map(([x,y],i)=>`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${i===S.month?5:2.5}" fill="${i===S.month?'#6366f1':'#8b5cf6'}" stroke="#fff" stroke-width="1.5"/>`).join('');
   const tip=vals[S.month]?`<text x="${cx.toFixed(1)}" y="${(cy-9).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#6366f1">&#8362;${fm(vals[S.month])}</text>`:'';
-  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
+  return`<div style="background:#faf5ff;border-radius:14px;padding:10px 12px;border:1px solid #ddd6fe">
     <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#128200; מגמת הוצאות שנתית</div>
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">
       <defs><linearGradient id="lgA" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366f1" stop-opacity=".25"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>
@@ -269,7 +269,7 @@ function rIncVsExp(){
   const slot=iw/6,bw=(slot-6)/2;
   const bars=idxs.map((m,i)=>{const x=px+i*slot;const h1=(iv[i]/max)*ih,h2=(ev[i]/max)*ih;return`<rect x="${(x+1).toFixed(1)}" y="${(py+ih-h1).toFixed(1)}" width="${bw.toFixed(1)}" height="${h1.toFixed(1)}" fill="#10b981" rx="2" opacity="${m===S.month?1:.7}"/><rect x="${(x+bw+4).toFixed(1)}" y="${(py+ih-h2).toFixed(1)}" width="${bw.toFixed(1)}" height="${h2.toFixed(1)}" fill="#6366f1" rx="2" opacity="${m===S.month?1:.7}"/>`;}).join('');
   const lbls=idxs.map((m,i)=>`<text x="${(px+i*slot+slot/2).toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="9" fill="${m===S.month?'#6366f1':'#94a3b8'}">${MO[m].substring(0,3)}</text>`).join('');
-  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
+  return`<div style="background:#faf5ff;border-radius:14px;padding:10px 12px;border:1px solid #ddd6fe">
     <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#128176; הכנסות מול הוצאות</div>
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${bars}${lbls}</svg>
     <div style="display:flex;gap:12px;justify-content:center;margin-top:6px">
@@ -284,7 +284,7 @@ function rCharts(){
   return`<div style="margin-bottom:14px">
     <div id="chartCarousel" style="overflow:hidden;border-radius:14px;touch-action:pan-y">
       <div id="chartTrack" style="display:flex;direction:ltr;transform:translateX(${S.chartIdx*-100}%);transition:transform .3s ease">
-        ${slides.map(s=>`<div style="min-width:100%;flex-shrink:0;direction:rtl">${s}</div>`).join('')}
+        ${slides.map(s=>`<div style="min-width:100%;flex-shrink:0;direction:rtl;padding:0 3px">${s}</div>`).join('')}
       </div>
     </div>
     <div style="display:flex;justify-content:center;gap:4px;margin-top:8px;flex-wrap:wrap">
