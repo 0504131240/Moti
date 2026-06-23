@@ -239,26 +239,26 @@ function rSparklines(){
   const items=S.cats.map(cat=>{
     const vals=idxs.map(m=>ct(m,cat.id));
     const max=Math.max(...vals,1);
-    const W=80,H=32;
+    const W=80,H=30;
     const pts=vals.map((v,i)=>`${(4+i*14).toFixed(0)},${(H-4-(v/max)*(H-8)).toFixed(1)}`).join(' ');
     const curr=vals[5],prev=vals[4];
     let tr='';
     if(prev&&curr){const p=Math.round(((curr-prev)/prev)*100);if(p>5)tr=`<span style="font-size:9px;color:#ef4444">&#9650;${p}%</span>`;else if(p<-5)tr=`<span style="font-size:9px;color:#10b981">&#9660;${Math.abs(p)}%</span>`;}
-    return`<div style="flex:1;min-width:120px;background:#fff;border-radius:10px;padding:7px 8px;border:1px solid #e2e8f0">
-      <div style="display:flex;align-items:center;gap:3px;margin-bottom:3px">
-        <div style="width:5px;height:5px;border-radius:50%;background:${cat.color}"></div>
-        <span style="font-size:10px;font-weight:700;color:#1e293b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat.name}</span>${tr}
+    return`<div style="background:#fff;border-radius:10px;padding:8px 8px 6px;border:1px solid #e2e8f0">
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+        <div style="width:6px;height:6px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
+        <span style="font-size:11px;font-weight:700;color:#1e293b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat.name}</span>${tr}
       </div>
-      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">
         <polyline points="${pts}" fill="none" stroke="${cat.color}" stroke-width="1.5" stroke-linejoin="round"/>
         ${vals.map((v,i)=>`<circle cx="${(4+i*14).toFixed(0)}" cy="${(H-4-(v/max)*(H-8)).toFixed(1)}" r="${i===5?3:1.5}" fill="${cat.color}"/>`).join('')}
       </svg>
-      <div style="font-size:11px;font-weight:700;color:#6366f1;text-align:center">&#8362;${fm(curr)}</div>
+      <div style="font-size:12px;font-weight:800;color:#6366f1;text-align:center;margin-top:3px">&#8362;${fm(curr)}</div>
     </div>`;
   }).join('');
-  return`<div style="background:#faf5ff;border-radius:14px;padding:14px 16px;border:1px solid #ddd6fe">
-    <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:8px">&#10024; מגמות 6 חודשים</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px">${items}</div>
+  return`<div style="background:#faf5ff;border-radius:14px;padding:12px 14px;border:1px solid #ddd6fe">
+    <div style="font-size:12px;color:#6366f1;font-weight:700;margin-bottom:10px">&#10024; מגמות 6 חודשים</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${items}</div>
   </div>`;
 }
 function rIncVsExp(){
