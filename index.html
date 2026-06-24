@@ -51,7 +51,7 @@ th{padding:10px 8px;color:#64748b;font-weight:600;text-align:center;font-size:12
 <script type="module">
 // Firebase loaded asynchronously so app always renders even if Firebase fails
 const FB_CFG={apiKey:"AIzaSyDU4O_IGPDLc7VkHR5ZvRbLzU6HKSa1C_E",authDomain:"moti1-848e7.firebaseapp.com",projectId:"moti1-848e7",storageBucket:"moti1-848e7.firebasestorage.app",messagingSenderId:"177637818983",appId:"1:177637818983:web:4830fff93f2dfa6746cac2"};
-let db=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null;
+let db=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null,_getDoc=null;
 let USERS=[],CUR_UID='u1';
 function loadUsers(){
   try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS=[{id:'u1',name:'משתמש 1'}];saveUsers();}}catch{USERS=[{id:'u1',name:'משתמש 1'}];}
@@ -61,8 +61,23 @@ function loadUsers(){
 function saveUsers(){
   try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
   try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
+  fbSaveUsers();
 }
 
+function fbSaveUsers(){
+  if(!db||!_setDoc||!_doc)return;
+  _setDoc(_doc(db,'budget','_users'),{users:USERS}).catch(e=>console.warn('FB users save:',e));
+}
+function fbLoadUsers(){
+  if(!db||!_getDoc||!_doc)return;
+  _getDoc(_doc(db,'budget','_users')).then(snap=>{
+    if(!snap.exists())return;
+    const fbUsers=snap.data().users||[];
+    let changed=false;
+    fbUsers.forEach(fu=>{if(!USERS.find(u=>u.id===fu.id)){USERS.push(fu);changed=true;}});
+    if(changed){saveUsers();rHdr();if(g('uO'))rUserMod();}
+  }).catch(e=>console.warn('FB users load:',e));
+}
 function fbSave(){
   if(!db||!_setDoc||!_doc)return;
   _setDoc(_doc(db,'budget',CUR_UID+'_'+String(S.year)),{cats:S.cats,mData:S.mData}).catch(e=>console.warn('FB save:',e));
@@ -1023,7 +1038,8 @@ loadUsers();ld();rAll();
     const fbApp=initializeApp(FB_CFG);
     try{db=m.initializeFirestore(fbApp,{localCache:m.persistentLocalCache()});}
     catch(e){db=m.getFirestore(fbApp);}
-    _doc=m.doc;_setDoc=m.setDoc;_onSnapshot=m.onSnapshot;
+    _doc=m.doc;_setDoc=m.setDoc;_onSnapshot=m.onSnapshot;_getDoc=m.getDoc;
+    fbLoadUsers();
     fbListen(S.year);
   }catch(e){
     console.warn('Firebase unavailable:',e);
