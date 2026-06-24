@@ -71,24 +71,24 @@ function fbSaveUsers(){
 function fbLoadUsers(){
   if(!db||!_getDoc||!_doc)return;
   _getDoc(_doc(db,'budget','_users')).then(snap=>{
-    if(!snap.exists())return;
-    const fbUsers=snap.data().users||[];
+    const fbUsers=snap.exists()?(snap.data().users||[]):[];
     let changed=false;
     fbUsers.forEach(fu=>{
       const local=USERS.find(u=>u.id===fu.id);
       if(!local){USERS.push(fu);changed=true;}
       else{
-        if(fu.name&&fu.name!==local.name){local.name=fu.name;changed=true;}
-        if(fu.pin&&fu.pin!==local.pin){local.pin=fu.pin;changed=true;}
-        if(!fu.pin&&local.pin){delete local.pin;changed=true;}
+        if(fu.pin&&!local.pin){local.pin=fu.pin;changed=true;}
+        if(fu.name&&fu.name!==local.name&&!local.name){local.name=fu.name;changed=true;}
       }
     });
+    fbSaveUsers();
     if(changed){
-      saveUsers();rHdr();
+      try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
+      rHdr();
       if(g('uO'))rUserMod();
-      const cur=USERS.find(u=>u.id===CUR_UID);
-      if(cur?.pin&&!g('lockPin'))rLockScreen();
     }
+    const cur=USERS.find(u=>u.id===CUR_UID);
+    if(cur?.pin&&!g('lockPin'))rLockScreen();
   }).catch(e=>console.warn('FB users load:',e));
 }
 function fbSave(){
