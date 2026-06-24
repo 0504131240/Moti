@@ -858,6 +858,29 @@ function rEditMod(){
   buildEM();
 }
 
+function rLockScreen(){
+  const u=USERS.find(u=>u.id===CUR_UID);
+  if(!u?.pin){rAll();return;}
+  const cnt=g('cnt');
+  cnt.innerHTML=`<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 24px">
+    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff">&#128274;</div>
+    <div style="font-size:22px;font-weight:800;color:#1e293b">${u.name}</div>
+    <div style="font-size:13px;color:#94a3b8">הזן סיסמה כדי להמשיך</div>
+    <input class="inp" id="lockPin" type="password" placeholder="סיסמה" style="text-align:center;font-size:22px;letter-spacing:8px;max-width:220px"/>
+    <button id="lockEnter" style="padding:13px;border-radius:12px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;width:100%;max-width:220px;box-shadow:0 4px 14px rgba(99,102,241,.3)">כניסה</button>
+    <div id="lockErr" style="color:#ef4444;font-size:12px;display:none">&#10060; סיסמה שגויה</div>
+    ${USERS.length>1?`<button id="lockSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline">כניסה עם משתמש אחר</button>`:''}
+  </div>`;
+  const tryPin=()=>{
+    if(g('lockPin').value===u.pin){rAll();}
+    else{g('lockErr').style.display='block';g('lockPin').value='';g('lockPin').focus();}
+  };
+  g('lockEnter').onclick=tryPin;
+  g('lockPin').onkeydown=e=>{if(e.key==='Enter')tryPin();};
+  if(USERS.length>1&&g('lockSwitch'))g('lockSwitch').onclick=()=>rUserMod();
+  requestAnimationFrame(()=>{const el=g('lockPin');if(el)el.focus();});
+}
+
 function rUserMod(editId=null,pinId=null,switchId=null){
   // PIN verification screen
   if(switchId){
@@ -1028,7 +1051,7 @@ window.rEntMod=rEntMod;
 window.rUserMod=rUserMod;
 
 // Render immediately from localStorage — no Firebase dependency
-loadUsers();ld();rAll();
+loadUsers();ld();rLockScreen();
 
 // Load Firebase asynchronously in background — app works even if this fails
 (async()=>{
