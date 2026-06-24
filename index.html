@@ -74,8 +74,21 @@ function fbLoadUsers(){
     if(!snap.exists())return;
     const fbUsers=snap.data().users||[];
     let changed=false;
-    fbUsers.forEach(fu=>{if(!USERS.find(u=>u.id===fu.id)){USERS.push(fu);changed=true;}});
-    if(changed){saveUsers();rHdr();if(g('uO'))rUserMod();}
+    fbUsers.forEach(fu=>{
+      const local=USERS.find(u=>u.id===fu.id);
+      if(!local){USERS.push(fu);changed=true;}
+      else{
+        if(fu.name&&fu.name!==local.name){local.name=fu.name;changed=true;}
+        if(fu.pin&&fu.pin!==local.pin){local.pin=fu.pin;changed=true;}
+        if(!fu.pin&&local.pin){delete local.pin;changed=true;}
+      }
+    });
+    if(changed){
+      saveUsers();rHdr();
+      if(g('uO'))rUserMod();
+      const cur=USERS.find(u=>u.id===CUR_UID);
+      if(cur?.pin&&!g('lockPin'))rLockScreen();
+    }
   }).catch(e=>console.warn('FB users load:',e));
 }
 function fbSave(){
