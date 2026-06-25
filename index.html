@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ניהול אתר בניה</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #e67e22;
+      --primary-dark: #ca6f1e;
+      --secondary: #2c3e50;
+      --bg: #f5f6fa;
+      --card: #ffffff;
+      --text: #2c3e50;
+      --text-light: #7f8c8d;
+      --border: #e0e0e0;
+      --success: #27ae60;
+      --danger: #e74c3c;
+      --shadow: 0 2px 12px rgba(0,0,0,0.10);
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      direction: rtl;
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--secondary) 0%, #1a252f 100%);
+      color: #fff;
+      padding: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 64px;
+    }
+    .header-logo { font-size: 26px; }
+    .header-title { font-size: 20px; font-weight: 700; }
+    .header-subtitle { font-size: 12px; color: #bdc3c7; margin-top: 1px; }
+
+    nav {
+      background: var(--secondary);
+      border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      gap: 4px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #bdc3c7;
+      padding: 14px 22px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .tab-btn:hover { color: #fff; }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--secondary);
+    }
+    .section-title span { font-size: 24px; margin-left: 8px; }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.18s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: #ecf0f1; color: var(--secondary); }
+    .btn-secondary:hover { background: #dfe6e9; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-sm { padding: 6px 14px; font-size: 13px; }
+
+    /* CALENDAR */
+    .calendar-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .calendar-nav { display: flex; align-items: center; gap: 16px; }
+    .cal-nav-btn {
+      background: none;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      width: 36px; height: 36px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      color: var(--secondary);
+    }
+    .cal-nav-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .cal-month-label {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--secondary);
+      min-width: 160px;
+      text-align: center;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+    .cal-day-header {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-light);
+      padding: 6px 0;
+    }
+    .cal-day {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      border: 2px solid transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: #f8f9fa;
+      min-height: 52px;
+    }
+    .cal-day:hover { border-color: var(--primary); background: #fff8f0; }
+    .cal-day.empty { background: transparent; cursor: default; pointer-events: none; }
+    .cal-day.today { border-color: var(--primary); background: #fff3e0; }
+    .cal-day.has-data { background: #e8f5e9; border-color: var(--success); }
+    .cal-day.has-data:hover { background: #c8e6c9; }
+    .cal-day-num { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1; }
+    .cal-day-workers { font-size: 10px; color: var(--success); font-weight: 700; margin-top: 3px; }
+    .cal-day.future { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+    .monthly-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .stat-box {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 18px 16px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+    .stat-num { font-size: 28px; font-weight: 800; color: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--text-light); margin-top: 4px; font-weight: 600; }
+
+    /* FORMS */
+    .add-update-form { display: none; }
+    .add-update-form.open { display: block; }
+
+    .form-group { margin-bottom: 18px; }
+    .form-label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+      transition: border-color 0.15s;
+      font-family: inherit;
+      direction: rtl;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .form-textarea { min-height: 100px; resize: vertical; }
+
+    /* PHOTO ZONE */
+    .photo-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fafafa;
+    }
+    .photo-zone:hover, .photo-zone.drag-over { border-color: var(--primary); background: #fff8f0; }
+    .photo-zone-icon { font-size: 32px; margin-bottom: 8px; }
+    .photo-zone-text { font-size: 13px; color: var(--text-light); }
+    .photo-zone input[type=file] { display: none; }
+
+    .photo-previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .photo-preview-item {
+      position: relative;
+      width: 90px; height: 90px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+    }
+    .photo-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-preview-item .remove-photo {
+      position: absolute;
+      top: 3px; left: 3px;
+      background: rgba(231,76,60,0.85);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 20px; height: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* UPDATE CARDS */
+    .updates-list { display: flex; flex-direction: column; gap: 20px; }
+    .update-card {
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .update-card-header {
+      background: linear-gradient(135deg, #f8f9fa 0%, #ecf0f1 100%);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .update-card-date { font-size: 13px; color: var(--text-light); font-weight: 600; }
+    .update-card-title { font-size: 16px; font-weight: 700; color: var(--secondary); }
+    .update-card-body { padding: 16px 20px; }
+    .update-card-desc { font-size: 14px; line-height: 1.6; color: var(--text); margin-bottom: 12px; }
+    .update-card-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+    .update-photo {
+      width: 100px; height: 100px;
+      border-radius: 8px;
+      object-fit: cover;
+      cursor: pointer;
+      border: 2px solid var(--border);
+      transition: transform 0.15s;
+    }
+    .update-photo:hover { transform: scale(1.04); border-color: var(--primary); }
+
+    /* PLANS */
+    .plans-upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fafafa;
+      margin-bottom: 24px;
+    }
+    .plans-upload-zone:hover, .plans-upload-zone.drag-over { border-color: var(--primary); background: #fff8f0; }
+    .plans-upload-icon { font-size: 48px; margin-bottom: 12px; }
+    .plans-upload-text { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .plans-upload-sub { font-size: 13px; color: var(--text-light); }
+    .plans-upload-zone input[type=file] { display: none; }
+
+    .plans-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    .plan-item {
+      background: var(--card);
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .plan-item:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+    .plan-icon { font-size: 40px; }
+    .plan-name { font-size: 13px; font-weight: 600; color: var(--text); word-break: break-word; line-height: 1.4; }
+    .plan-size { font-size: 11px; color: var(--text-light); }
+    .plan-date { font-size: 11px; color: var(--text-light); }
+    .plan-actions { display: flex; gap: 6px; }
+    .plan-thumb {
+      width: 100%;
+      height: 110px;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #f5f6fa;
+      border: 1px solid var(--border);
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.22);
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      direction: rtl;
+    }
+    .modal-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title { font-size: 17px; font-weight: 700; color: var(--secondary); }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--text-light);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    .modal-close:hover { background: #f0f0f0; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer {
+      padding: 14px 24px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    /* WORKER COUNTER */
+    .worker-counter { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+    .counter-btn {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      color: var(--secondary);
+    }
+    .counter-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .counter-value { font-size: 32px; font-weight: 800; color: var(--primary); min-width: 50px; text-align: center; }
+
+    .worker-type-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .worker-type-label { font-size: 13px; font-weight: 600; flex: 1; color: var(--text); }
+    .worker-type-input {
+      width: 70px;
+      padding: 6px 10px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      text-align: center;
+      font-weight: 700;
+    }
+    .worker-type-input:focus { outline: none; border-color: var(--primary); }
+
+    /* LIGHTBOX */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 95vw; max-height: 90vh; border-radius: 8px; object-fit: contain; }
+    .lightbox-close {
+      position: absolute;
+      top: 20px; left: 20px;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      font-size: 28px;
+      cursor: pointer;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #2c3e50;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      z-index: 3000;
+      transition: transform 0.3s;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-light); }
+    .empty-icon { font-size: 52px; margin-bottom: 14px; }
+    .empty-text { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-bar input { flex: 1; min-width: 180px; }
+
+    @media (max-width: 600px) {
+      main { padding: 16px; }
+      .header-inner { padding: 0 14px; }
+      .nav-inner { padding: 0 4px; }
+      .tab-btn { padding: 12px 10px; font-size: 12px; }
+      .plans-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">🏗️</div>
+    <div>
+      <div class="header-title">ניהול אתר בניה</div>
+      <div class="header-subtitle">מערכת ניהול שוטפת</div>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="nav-inner">
+    <button class="tab-btn active" onclick="showTab('journal')">📅 יומן פועלים</button>
+    <button class="tab-btn" onclick="showTab('progress')">📊 התקדמות</button>
+    <button class="tab-btn" onclick="showTab('plans')">📐 תוכניות</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- JOURNAL -->
+  <div id="section-journal" class="section active">
+    <div class="section-header">
+      <div class="section-title"><span>📅</span> יומן פועלים</div>
+      <button class="btn btn-primary" onclick="openDayModal(todayStr())">✏️ עדכון היום</button>
+    </div>
+    <div class="card">
+      <div class="calendar-controls">
+        <div class="calendar-nav">
+          <button class="cal-nav-btn" onclick="changeMonth(-1)">&#8250;</button>
+          <div class="cal-month-label" id="cal-month-label"></div>
+          <button class="cal-nav-btn" onclick="changeMonth(1)">&#8249;</button>
+        </div>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+      <div class="monthly-stats" id="monthly-stats"></div>
+    </div>
+    <div id="journal-recent"></div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div id="section-progress" class="section">
+    <div class="section-header">
+      <div class="section-title"><span>📊</span> עדכוני התקדמות</div>
+      <button class="btn btn-primary" onclick="toggleUpdateForm()" id="add-update-btn">➕ הוסף עדכון</button>
+    </div>
+    <div class="card add-update-form" id="update-form">
+      <h3 style="margin-bottom:18px;font-size:16px;color:var(--secondary)">✏️ עדכון חדש</h3>
+      <div class="form-group">
+        <label class="form-label">תאריך</label>
+        <input type="date" class="form-input" id="upd-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">כותרת</label>
+        <input type="text" class="form-input" id="upd-title" placeholder="מה בוצע היום?">
+      </div>
+      <div class="form-group">
+        <label class="form-label">תיאור</label>
+        <textarea class="form-textarea" id="upd-desc" placeholder="פרט את ההתקדמות..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">תמונות</label>
+        <div class="photo-zone" onclick="document.getElementById('upd-photos-input').click()" id="upd-photo-zone">
+          <div class="photo-zone-icon">📷</div>
+          <div class="photo-zone-text">לחץ או גרור תמונות לכאן</div>
+          <input type="file" id="upd-photos-input" multiple accept="image/*" onchange="handleUpdatePhotos(this)">
+        </div>
+        <div class="photo-previews" id="upd-photo-previews"></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="toggleUpdateForm(true)">ביטול</button>
+        <button class="btn btn-primary" onclick="saveUpdate()">💾 שמור</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" class="form-input" id="prog-search" placeholder="🔍 חיפוש..." oninput="renderUpdates()">
+    </div>
+    <div class="updates-list" id="updates-list"></div>
+  </div>
+
+  <!-- PLANS -->
+  <div id="section-plans" class="section">
+    <div class="section-header">
+      <div class="section-title"><span>📐</span> תוכניות</div>
+    </div>
+    <div class="plans-upload-zone" id="plans-drop-zone" onclick="document.getElementById('plans-input').click()">
+      <div class="plans-upload-icon">📁</div>
+      <div class="plans-upload-text">גרור קבצים לכאן או לחץ להעלאה</div>
+      <div class="plans-upload-sub">PDF, DWG, תמונות וכל סוג מסמך</div>
+      <input type="file" id="plans-input" multiple onchange="handlePlansUpload(this)">
+    </div>
+    <div class="filter-bar">
+      <input type="text" class="form-input" id="plans-search" placeholder="🔍 חיפוש בתוכניות..." oninput="renderPlans()">
+      <select class="form-select" id="plans-filter" onchange="renderPlans()" style="max-width:180px">
+        <option value="">כל הסוגים</option>
+        <option value="image">תמונות</option>
+        <option value="pdf">PDF</option>
+        <option value="other">אחר</option>
+      </select>
+    </div>
+    <div id="plans-grid"></div>
+  </div>
+
+</main>
+
+<!-- DAY MODAL -->
+<div class="modal-overlay" id="day-modal-overlay" onclick="closeDayModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="day-modal-title">יומן</div>
+      <button class="modal-close" onclick="closeDayModal(null,true)">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:18px">
+        <label class="form-label">סה"כ פועלים</label>
+        <div class="worker-counter">
+          <button class="counter-btn" onclick="adjustWorkers(-1)">−</button>
+          <div class="counter-value" id="worker-count-display">0</div>
+          <button class="counter-btn" onclick="adjustWorkers(1)">+</button>
+        </div>
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:10px">פירוט לפי סוג</label>
+        <div class="worker-type-row">
+          <span class="worker-type-label">🧱 בנאים</span>
+          <input type="number" class="worker-type-input" id="wt-bricklayers" min="0" value="0" oninput="updateTotalFromTypes()">
+        </div>
+        <div class="worker-type-row">
+          <span class="worker-type-label">🔧 אינסטלטורים</span>
+          <input type="number" class="worker-type-input" id="wt-plumbers" min="0" value="0" oninput="updateTotalFromTypes()">
+        </div>
+        <div class="worker-type-row">
+          <span class="worker-type-label">⚡ חשמלאים</span>
+          <input type="number" class="worker-type-input" id="wt-electricians" min="0" value="0" oninput="updateTotalFromTypes()">
+        </div>
+        <div class="worker-type-row">
+          <span class="worker-type-label">🪵 נגרים</span>
+          <input type="number" class="worker-type-input" id="wt-carpenters" min="0" value="0" oninput="updateTotalFromTypes()">
+        </div>
+        <div class="worker-type-row">
+          <span class="worker-type-label">👷 כללי</span>
+          <input type="number" class="worker-type-input" id="wt-general" min="0" value="0" oninput="updateTotalFromTypes()">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="form-label">הערות</label>
+        <textarea class="form-textarea" id="day-notes" placeholder="הערות לגבי יום העבודה..." style="min-height:70px"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="day-delete-btn" onclick="deleteDay()" style="display:none">🗑️ מחק</button>
+      <button class="btn btn-secondary" onclick="closeDayModal(null,true)">ביטול</button>
+      <button class="btn btn-primary" onclick="saveDayEntry()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+let currentDate = new Date();
+let activeDayStr = null;
+let pendingUpdatePhotos = [];
+
+const DB = {
+  get: (k) => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+  getArr: (k) => { try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; } },
+  setArr: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+
+function showTab(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  const map = { journal: 0, progress: 1, plans: 2 };
+  document.querySelectorAll('.tab-btn')[map[name]].classList.add('active');
+  if (name === 'journal') renderCalendar();
+  if (name === 'progress') renderUpdates();
+  if (name === 'plans') renderPlans();
+}
+
+function todayStr() {
+  return fmtDate(new Date());
+}
+function fmtDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function hebrewDate(dateStr) {
+  const [y,m,d] = dateStr.split('-');
+  const months = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  return `${parseInt(d)} ב${months[parseInt(m)-1]} ${y}`;
+}
+function hebrewMonth(year, month) {
+  const months = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  return `${months[month]} ${year}`;
+}
+
+function changeMonth(dir) {
+  currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + dir, 1);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const today = todayStr();
+  const journal = DB.get('journal');
+
+  document.getElementById('cal-month-label').textContent = hebrewMonth(year, month);
+  const grid = document.getElementById('calendar-grid');
+  const dayNames = ['אחד','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  grid.innerHTML = dayNames.map(d => `<div class="cal-day-header">${d}</div>`).join('');
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="cal-day empty"></div>`;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const entry = journal[ds];
+    const isToday = ds === today;
+    const isFuture = ds > today;
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (entry && entry.total > 0) cls += ' has-data';
+    if (isFuture) cls += ' future';
+    grid.innerHTML += `<div class="${cls}" onclick="openDayModal('${ds}')" title="${hebrewDate(ds)}">
+      <div class="cal-day-num">${day}</div>
+      ${entry && entry.total > 0 ? `<div class="cal-day-workers">${entry.total}פ'</div>` : ''}
+    </div>`;
+  }
+
+  let totalDays=0, totalWorkers=0, maxDay=0;
+  for (const [ds, e] of Object.entries(journal)) {
+    const [y,m] = ds.split('-');
+    if (parseInt(y)===year && parseInt(m)-1===month && e.total>0) {
+      totalDays++; totalWorkers+=e.total;
+      if (e.total>maxDay) maxDay=e.total;
+    }
+  }
+  document.getElementById('monthly-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-num">${totalDays}</div><div class="stat-label">ימי עבודה</div></div>
+    <div class="stat-box"><div class="stat-num">${totalWorkers}</div><div class="stat-label">סה"כ נוכחות</div></div>
+    <div class="stat-box"><div class="stat-num">${maxDay}</div><div class="stat-label">שיא יומי</div></div>`;
+
+  renderJournalRecent();
+}
+
+function renderJournalRecent() {
+  const journal = DB.get('journal');
+  const entries = Object.entries(journal)
+    .filter(([,e]) => e.total > 0)
+    .sort((a,b) => b[0].localeCompare(a[0]))
+    .slice(0, 5);
+  const container = document.getElementById('journal-recent');
+  if (!entries.length) { container.innerHTML=''; return; }
+  container.innerHTML = `<div class="card">
+    <div style="font-size:15px;font-weight:700;color:var(--secondary);margin-bottom:14px">📋 רשומות אחרונות</div>
+    ${entries.map(([ds,e]) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openDayModal('${ds}')">
+      <div>
+        <div style="font-weight:600;font-size:14px">${hebrewDate(ds)}</div>
+        ${e.notes ? `<div style="font-size:12px;color:var(--text-light);margin-top:2px">${e.notes.substring(0,60)}${e.notes.length>60?'...':''}</div>` : ''}
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:22px;font-weight:800;color:var(--primary)">${e.total}</div>
+        <div style="font-size:11px;color:var(--text-light)">פועלים</div>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function openDayModal(dateStr) {
+  activeDayStr = dateStr;
+  document.getElementById('day-modal-title').textContent = '📅 ' + hebrewDate(dateStr);
+  const journal = DB.get('journal');
+  const entry = journal[dateStr] || { total:0, types:{}, notes:'' };
+  document.getElementById('worker-count-display').textContent = entry.total || 0;
+  document.getElementById('day-notes').value = entry.notes || '';
+  ['bricklayers','plumbers','electricians','carpenters','general'].forEach(t => {
+    document.getElementById('wt-'+t).value = (entry.types && entry.types[t]) || 0;
+  });
+  document.getElementById('day-delete-btn').style.display = (journal[dateStr] && journal[dateStr].total>0) ? 'inline-flex' : 'none';
+  document.getElementById('day-modal-overlay').classList.add('open');
+}
+
+function closeDayModal(e, force) {
+  if (!force && e && e.target !== document.getElementById('day-modal-overlay')) return;
+  document.getElementById('day-modal-overlay').classList.remove('open');
+  activeDayStr = null;
+}
+
+function adjustWorkers(delta) {
+  const el = document.getElementById('worker-count-display');
+  el.textContent = Math.max(0, parseInt(el.textContent||0) + delta);
+}
+
+function updateTotalFromTypes() {
+  const total = ['bricklayers','plumbers','electricians','carpenters','general']
+    .reduce((s,t) => s + (parseInt(document.getElementById('wt-'+t).value)||0), 0);
+  document.getElementById('worker-count-display').textContent = total;
+}
+
+function saveDayEntry() {
+  if (!activeDayStr) return;
+  const total = parseInt(document.getElementById('worker-count-display').textContent) || 0;
+  const types = {};
+  ['bricklayers','plumbers','electricians','carpenters','general'].forEach(t => {
+    types[t] = parseInt(document.getElementById('wt-'+t).value)||0;
+  });
+  const notes = document.getElementById('day-notes').value.trim();
+  const journal = DB.get('journal');
+  journal[activeDayStr] = { total, types, notes, updatedAt: Date.now() };
+  DB.set('journal', journal);
+  closeDayModal(null, true);
+  renderCalendar();
+  showToast('✅ יומן עודכן!', 'success');
+}
+
+function deleteDay() {
+  if (!activeDayStr) return;
+  const journal = DB.get('journal');
+  delete journal[activeDayStr];
+  DB.set('journal', journal);
+  closeDayModal(null, true);
+  renderCalendar();
+  showToast('🗑️ נמחק');
+}
+
+function toggleUpdateForm(forceClose) {
+  const form = document.getElementById('update-form');
+  const btn = document.getElementById('add-update-btn');
+  if (forceClose || form.classList.contains('open')) {
+    form.classList.remove('open');
+    btn.innerHTML = '➕ הוסף עדכון';
+    resetUpdateForm();
+  } else {
+    form.classList.add('open');
+    btn.innerHTML = '✕ סגור';
+    document.getElementById('upd-date').value = todayStr();
+  }
+}
+
+function resetUpdateForm() {
+  ['upd-date','upd-title','upd-desc'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('upd-photo-previews').innerHTML = '';
+  pendingUpdatePhotos = [];
+}
+
+function handleUpdatePhotos(input) {
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      pendingUpdatePhotos.push({ name: file.name, data: e.target.result });
+      renderUpdatePhotoPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function renderUpdatePhotoPreviews() {
+  document.getElementById('upd-photo-previews').innerHTML = pendingUpdatePhotos.map((p,i) =>
+    `<div class="photo-preview-item"><img src="${p.data}"><button class="remove-photo" onclick="removePendingPhoto(${i})">✕</button></div>`
+  ).join('');
+}
+
+function removePendingPhoto(idx) {
+  pendingUpdatePhotos.splice(idx, 1);
+  renderUpdatePhotoPreviews();
+}
+
+function saveUpdate() {
+  const date = document.getElementById('upd-date').value;
+  const title = document.getElementById('upd-title').value.trim();
+  const desc = document.getElementById('upd-desc').value.trim();
+  if (!date || !title) { showToast('נא למלא תאריך וכותרת', 'error'); return; }
+  const updates = DB.getArr('updates');
+  updates.unshift({ id: Date.now(), date, title, desc, photos: [...pendingUpdatePhotos], createdAt: Date.now() });
+  DB.setArr('updates', updates);
+  toggleUpdateForm(true);
+  renderUpdates();
+  showToast('✅ עדכון נשמר!', 'success');
+}
+
+function renderUpdates() {
+  const updates = DB.getArr('updates');
+  const q = (document.getElementById('prog-search')?.value||'').toLowerCase();
+  const filtered = updates.filter(u => !q || u.title.toLowerCase().includes(q) || (u.desc||'').toLowerCase().includes(q));
+  const container = document.getElementById('updates-list');
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">אין עדכונים עדיין</div></div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(u => `
+    <div class="update-card">
+      <div class="update-card-header">
+        <div>
+          <div class="update-card-title">${u.title}</div>
+          <div class="update-card-date">📅 ${hebrewDate(u.date)}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteUpdate(${u.id})">🗑️</button>
+      </div>
+      <div class="update-card-body">
+        ${u.desc ? `<div class="update-card-desc">${u.desc.replace(/\n/g,'<br>')}</div>` : ''}
+        ${u.photos?.length ? `<div class="update-card-photos">${u.photos.map(p => `<img class="update-photo" src="${p.data}" onclick="openLightbox('${p.data}')">` ).join('')}</div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function deleteUpdate(id) {
+  DB.setArr('updates', DB.getArr('updates').filter(u => u.id !== id));
+  renderUpdates();
+  showToast('🗑️ נמחק');
+}
+
+function handlePlansUpload(input) {
+  const files = Array.from(input.files);
+  const plans = DB.getArr('plans');
+  Promise.all(files.map(file => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const type = ['jpg','jpeg','png','gif','webp','svg'].includes(ext) ? 'image' : ext==='pdf' ? 'pdf' : 'other';
+      plans.unshift({ id: Date.now()+Math.random(), name: file.name, size: file.size, type, ext, data: e.target.result, uploadedAt: Date.now() });
+      resolve();
+    };
+    reader.readAsDataURL(file);
+  }))).then(() => {
+    DB.setArr('plans', plans);
+    renderPlans();
+    showToast(`✅ ${files.length} קבצים הועלו!`, 'success');
+  });
+  input.value = '';
+}
+
+function renderPlans() {
+  const plans = DB.getArr('plans');
+  const q = (document.getElementById('plans-search')?.value||'').toLowerCase();
+  const ft = document.getElementById('plans-filter')?.value||'';
+  const filtered = plans.filter(p => (!q||p.name.toLowerCase().includes(q)) && (!ft||p.type===ft));
+  const container = document.getElementById('plans-grid');
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📐</div><div class="empty-text">אין תוכניות עדיין</div></div>`;
+    return;
+  }
+  const fmtSize = b => b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB';
+  const fmtTime = ts => new Date(ts).toLocaleDateString('he-IL');
+  const fileIcon = p => p.type==='image'?'🖼️':p.ext==='pdf'?'📄':['dwg','dxf'].includes(p.ext)?'📐':'📁';
+  container.innerHTML = `<div class="plans-grid">${filtered.map(p => `
+    <div class="plan-item">
+      ${p.type==='image' ? `<img class="plan-thumb" src="${p.data}" onclick="openLightbox('${p.data}')" style="cursor:pointer">` : `<div class="plan-icon">${fileIcon(p)}</div>`}
+      <div class="plan-name">${p.name}</div>
+      <div class="plan-size">${fmtSize(p.size)}</div>
+      <div class="plan-date">הועלה: ${fmtTime(p.uploadedAt)}</div>
+      <div class="plan-actions">
+        <button class="btn btn-secondary btn-sm" onclick="downloadPlan(${JSON.stringify(p.id)})">⬇️</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePlan(${JSON.stringify(p.id)})">🗑️</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function downloadPlan(id) {
+  const plan = DB.getArr('plans').find(p => p.id===id);
+  if (!plan) return;
+  const a = document.createElement('a');
+  a.href = plan.data; a.download = plan.name; a.click();
+}
+
+function deletePlan(id) {
+  DB.setArr('plans', DB.getArr('plans').filter(p => p.id!==id));
+  renderPlans();
+  showToast('🗑️ נמחק');
+}
+
+function setupDrop(zoneId, handler) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handler({ files: e.dataTransfer.files, value: '' });
+  });
+}
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type||'');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderCalendar();
+  setupDrop('upd-photo-zone', handleUpdatePhotos);
+  setupDrop('plans-drop-zone', handlePlansUpload);
+  document.getElementById('upd-date').max = todayStr();
+});
+</script>
+</body>
+</html>
