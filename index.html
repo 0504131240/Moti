@@ -436,6 +436,7 @@ function rMon(){
         ${bud>0?`<div style="text-align:center"><div style="font-size:10px;color:#94a3b8">יתרה</div><div style="font-size:16px;font-weight:700;color:${rem<0?'#ef4444':'#10b981'}">${rem<0?fm(Math.abs(rem))+'-&#8362;':'&#8362;'+fm(rem)}</div></div>`:`<div style="text-align:center"><div style="font-size:10px;color:#94a3b8">יתרה</div><div style="font-size:16px;font-weight:700;color:#cbd5e1">—</div></div>`}
         <div style="text-align:center"><div style="font-size:10px;color:#94a3b8">פריטים</div><div style="font-size:16px;font-weight:700;color:#94a3b8">${ent.length}</div></div>
       </div>
+      ${(cat.subs||[]).some(s=>s.budget>0)?`<div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:6px">${(cat.subs||[]).filter(s=>s.budget>0).map(s=>{const sT=ent.filter(e=>e.subCat===s.id).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);const sP=Math.min((sT/s.budget)*100,100);const sOv=sT>s.budget;return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:11px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</span><span style="font-size:11px;font-weight:600;color:${sOv?'#ef4444':'#6366f1'};flex-shrink:0">&#8362;${fm(sT)}</span><div style="width:48px;height:4px;background:#f1f5f9;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${sP}%;background:${sP>=100?'#ef4444':cat.color};border-radius:2px"></div></div><span style="font-size:10px;color:#94a3b8;flex-shrink:0">${fm(s.budget)}</span></div>`;}).join('')}</div>`:''}
     </div>`;
   }).join("");
 
@@ -832,7 +833,7 @@ function rEditMod(){
   const ec=S.eCat;
   let editSubs=(ec.subs||[]).map(s=>({...s}));
   function buildEM(){
-    const subItems=editSubs.map(s=>`<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#f8faff;border-radius:8px;margin-bottom:4px;border:1px solid #e2e8f0"><span style="flex:1;font-size:13px;color:#1e293b">${s.name}</span><button class="dSub" data-sid="${s.id}" style="background:transparent;border:none;cursor:pointer;font-size:16px;color:#ef4444;padding:2px">&times;</button></div>`).join('');
+    const subItems=editSubs.map(s=>`<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#f8faff;border-radius:8px;margin-bottom:4px;border:1px solid #e2e8f0"><span style="flex:1;font-size:13px;color:#1e293b">${s.name}</span><input class="inp subBudget" data-sid="${s.id}" type="number" placeholder="תקציב" value="${s.budget||''}" style="width:80px;padding:4px 8px;font-size:12px;text-align:center"/><button class="dSub" data-sid="${s.id}" style="background:transparent;border:none;cursor:pointer;font-size:16px;color:#ef4444;padding:2px">&times;</button></div>`).join('');
     ih("m3",`<div class="overlay" id="edO"><div class="modal">
       <div style="font-size:17px;font-weight:800;margin-bottom:16px;color:#1e293b">עריכת קטגוריה</div>
       <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px;letter-spacing:.5px">שם</label>
@@ -851,7 +852,8 @@ function rEditMod(){
       <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:5px;letter-spacing:.5px">תתי-קטגוריות</label>
       <div id="subEL" style="margin-bottom:6px">${subItems||'<div style="font-size:12px;color:#cbd5e1;padding:3px 0">אין תתי-קטגוריות</div>'}</div>
       <div style="display:flex;gap:6px;margin-bottom:16px">
-        <input class="inp" id="newSubN" placeholder="תת-קטגוריה חדשה" style="flex:1;padding:7px 10px;font-size:13px"/>
+        <input class="inp" id="newSubN" placeholder="שם" style="flex:2;padding:7px 10px;font-size:13px"/>
+        <input class="inp" id="newSubB" type="number" placeholder="תקציב &#8362;" style="flex:1;padding:7px 8px;font-size:12px;text-align:center"/>
         <button id="addSubB" style="padding:7px 14px;border-radius:10px;border:none;background:#6366f1;color:#fff;font-size:15px;font-weight:700;cursor:pointer">+</button>
       </div>
       <div style="display:flex;gap:8px">
@@ -859,13 +861,15 @@ function rEditMod(){
         <button id="cEd" style="flex:1;padding:11px;border-radius:10px;border:none;color:#64748b;font-weight:600;background:#f1f5f9;cursor:pointer">ביטול</button>
       </div>
     </div></div>`);
-    document.querySelectorAll("#eS .csw").forEach(s=>s.onclick=()=>{S.eCat.name=(g("eN")?.value||S.eCat.name);S.eCat.budget=parseFloat(g("eB")?.value)||S.eCat.budget;const bR=parseFloat(g("eBR")?.value);if(bR>0)S.eCat.budgetRec=bR;else delete S.eCat.budgetRec;S.eCat.color=s.dataset.c;S.eCat.subs=editSubs;rEditMod();});
+    const capSubs=()=>{editSubs=editSubs.map(s=>{const el=document.querySelector('.subBudget[data-sid="'+s.id+'"]');const b=parseFloat(el?.value)||0;return b?{...s,budget:b}:{id:s.id,name:s.name};});};
+    document.querySelectorAll("#eS .csw").forEach(s=>s.onclick=()=>{capSubs();S.eCat.name=(g("eN")?.value||S.eCat.name);S.eCat.budget=parseFloat(g("eB")?.value)||S.eCat.budget;const bR=parseFloat(g("eBR")?.value);if(bR>0)S.eCat.budgetRec=bR;else delete S.eCat.budgetRec;S.eCat.color=s.dataset.c;S.eCat.subs=editSubs;rEditMod();});
     g("cEd").onclick=()=>ih("m3","");
     g("edO").onclick=e=>{if(e.target.id==="edO")ih("m3","");};
-    g("addSubB").onclick=()=>{const n=(g("newSubN").value||"").trim();if(!n)return;editSubs=[...editSubs,{id:Date.now(),name:n}];buildEM();};
+    g("addSubB").onclick=()=>{capSubs();const n=(g("newSubN").value||"").trim();if(!n)return;const bN=parseFloat(g("newSubB")?.value)||0;const newS={id:Date.now(),name:n};if(bN>0)newS.budget=bN;editSubs=[...editSubs,newS];buildEM();};
     g("newSubN").onkeydown=e=>{if(e.key==="Enter")g("addSubB").click();};
-    document.querySelectorAll(".dSub").forEach(b=>b.onclick=()=>{editSubs=editSubs.filter(s=>s.id!==parseInt(b.dataset.sid));buildEM();});
+    document.querySelectorAll(".dSub").forEach(b=>b.onclick=()=>{capSubs();editSubs=editSubs.filter(s=>s.id!==parseInt(b.dataset.sid));buildEM();});
     g("dE").onclick=()=>{
+      capSubs();
       S.eCat.name=g("eN").value.trim();S.eCat.budget=parseFloat(g("eB").value)||0;
       const bR=parseFloat(g("eBR").value);if(bR>0)S.eCat.budgetRec=bR;else delete S.eCat.budgetRec;
       if(g("eCatRec").checked)S.eCat.isRecurring=true;else delete S.eCat.isRecurring;
