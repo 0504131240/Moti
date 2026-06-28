@@ -1034,23 +1034,23 @@ function rBudgetSuggest(){
   const sugs=S.cats.map(cat=>{
     const varA=months.map(mo=>mo.ents[cat.id].filter(e=>!e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
     const recA=months.map(mo=>mo.ents[cat.id].filter(e=>e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
-    // Use peak month (not average) — budget should cover the highest-spending month
-    const peakVar=varA.length?Math.max(...varA):0;
-    const peakRec=recA.length?Math.max(...recA):0;
-    const hasV=varA.some(v=>v>0),hasR=recA.some(v=>v>0);
+    const nzVar=varA.filter(v=>v>0),nzRec=recA.filter(v=>v>0);
+    const avgVar=nzVar.length?nzVar.reduce((a,b)=>a+b,0)/nzVar.length:0;
+    const avgRec=nzRec.length?nzRec.reduce((a,b)=>a+b,0)/nzRec.length:0;
+    const hasV=nzVar.length>0,hasR=nzRec.length>0;
     const curVar=cat.budget||0,curRec=cat.budgetRec||0;
     let sugVar=curVar,sugRec=curRec,chV=0,chR=0,nV='',nR='';
     if(hasV){
-      if(peakVar>curVar*1.05||curVar===0){sugVar=r50(peakVar*1.15);chV=1;nV=`שיא ₪${fm(Math.round(peakVar))}`;}
-      else if(curVar>0&&peakVar<curVar*0.7){sugVar=r50(peakVar*1.25);chV=-1;nV=`שיא ₪${fm(Math.round(peakVar))}`;}
-      else{nV=`שיא ₪${fm(Math.round(peakVar))} — מאוזן`;}
+      if(avgVar>curVar*1.05||curVar===0){sugVar=r50(avgVar*1.15);chV=1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
+      else if(curVar>0&&avgVar<curVar*0.7){sugVar=r50(avgVar*1.25);chV=-1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
+      else{nV=`ממוצע ₪${fm(Math.round(avgVar))} — מאוזן`;}
     }else if(curVar>0){sugVar=0;chV=-1;nV='ללא שימוש ב-6 חודשים';}
     if(hasR){
-      if(peakRec>curRec*1.05||curRec===0){sugRec=r50(peakRec*1.1);chR=1;nR=`שיא ₪${fm(Math.round(peakRec))}`;}
-      else if(curRec>0&&peakRec<curRec*0.7){sugRec=r50(peakRec*1.15);chR=-1;nR=`שיא ₪${fm(Math.round(peakRec))}`;}
-      else{nR=`שיא ₪${fm(Math.round(peakRec))} — מאוזן`;}
+      if(avgRec>curRec*1.05||curRec===0){sugRec=r50(avgRec*1.1);chR=1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
+      else if(curRec>0&&avgRec<curRec*0.7){sugRec=r50(avgRec*1.15);chR=-1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
+      else{nR=`ממוצע ₪${fm(Math.round(avgRec))} — מאוזן`;}
     }else if(curRec>0){sugRec=0;chR=-1;nR='ללא הוצאות קבועות ב-6 חודשים';}
-    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,peakVar,peakRec};
+    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec};
   });
   const totalCur=S.cats.reduce((s,c)=>s+(c.budget||0)+(c.budgetRec||0),0);
   let scaledForIncome=false;
@@ -1123,8 +1123,8 @@ function rBudgetSuggest(){
         x.sugVar=nv;x.sugRec=nr;
         x.chV=nv!==x.curVar?(nv<x.curVar?-1:1):0;
         x.chR=nr!==x.curRec?(nr<x.curRec?-1:1):0;
-        x.nV=nv!==x.curVar?'עריכה ידנית':`שיא ₪${fm(Math.round(x.peakVar))} — מאוזן`;
-        x.nR=nr!==x.curRec?'עריכה ידנית':`שיא ₪${fm(Math.round(x.peakRec))} — מאוזן`;
+        x.nV=nv!==x.curVar?'עריכה ידנית':`ממוצע ₪${fm(Math.round(x.avgVar))} — מאוזן`;
+        x.nR=nr!==x.curRec?'עריכה ידנית':`ממוצע ₪${fm(Math.round(x.avgRec))} — מאוזן`;
         editIdx=-1;doRender();
       };
       if(g('bsCx'+i))g('bsCx'+i).onclick=()=>{editIdx=-1;doRender();};
