@@ -636,12 +636,13 @@ function rIncMod(){
 function rYr(){
   const hd=MO.map(m=>`<th style="font-size:11px">${m}</th>`).join("");
   const rows=S.cats.map((cat,i)=>{
-    const yt=cyt(cat.id),yo=yt>cat.budget*12&&cat.budget>0;
-    const cs=MO.map((_,mi)=>{const t=ct(mi,cat.id),o=t>cat.budget&&cat.budget>0;return`<td style="padding:7px 3px;font-size:11px;font-weight:${o?700:400};color:${o?'#ef4444':t>0?'#1e293b':'#cbd5e1'}">${t>0?'&#8362;'+fm(t):'—'}</td>`;}).join("");
+    const totalBud=(cat.budget||0)+(cat.budgetRec||0);
+    const yt=cyt(cat.id),yo=yt>totalBud*12&&totalBud>0;
+    const cs=MO.map((_,mi)=>{const t=ct(mi,cat.id),o=t>totalBud&&totalBud>0;return`<td style="padding:7px 3px;font-size:11px;font-weight:${o?700:400};color:${o?'#ef4444':t>0?'#1e293b':'#cbd5e1'}">${t>0?'&#8362;'+fm(t):'—'}</td>`;}).join("");
     return`<tr style="background:${i%2===0?'#fff':'#f8faff'};border-top:1px solid #e2e8f0">
       <td style="padding:9px 10px;text-align:right;white-space:nowrap">
         <div style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:${cat.color};flex-shrink:0"></div><span style="font-weight:600;color:#1e293b;font-size:12px">${cat.name}</span></div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:2px">תקציב: ${cat.budget}/חודש</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">תקציב: ${fm(totalBud)}/חודש</div>
       </td>${cs}
       <td style="padding:9px 6px;text-align:center;font-size:13px;font-weight:700;color:${yo?'#ef4444':'#6366f1'}">&#8362;${fm(yt)}</td>
     </tr>`;
