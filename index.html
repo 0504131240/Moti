@@ -1050,7 +1050,17 @@ function rBudgetSuggest(){
     return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec};
   });
   const totalCur=S.cats.reduce((s,c)=>s+(c.budget||0)+(c.budgetRec||0),0);
-  const totalSug=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+  let totalSug=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+  const MAX_RATIO=0.9;
+  if(avgInc>0&&totalSug>avgInc*MAX_RATIO){
+    const scale=(avgInc*MAX_RATIO)/totalSug;
+    sugs.forEach(x=>{
+      const newVar=r50(x.sugVar*scale),newRec=r50(x.sugRec*scale);
+      if(newVar!==x.sugVar){x.sugVar=newVar;x.chV=newVar<x.curVar?-1:newVar>x.curVar?1:0;if(!x.nV)x.nV=`ממוצע ₪${fm(Math.round(x.avgVar))}`;}
+      if(newRec!==x.sugRec){x.sugRec=newRec;x.chR=newRec<x.curRec?-1:newRec>x.curRec?1:0;if(!x.nR)x.nR=`ממוצע ₪${fm(Math.round(x.avgRec))}`;}
+    });
+    totalSug=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+  }
   const ratio=avgInc>0?Math.round(totalSug/avgInc*100):null;
   const rColor=ratio===null?'#64748b':ratio>90?'#ef4444':ratio>75?'#f59e0b':'#10b981';
   const changed=sugs.filter(x=>x.sugVar!==x.curVar||x.sugRec!==x.curRec);
@@ -1072,6 +1082,7 @@ function rBudgetSuggest(){
       <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב נוכחי</div><div style="font-size:14px;font-weight:700;color:#6366f1">&#8362;${fm(totalCur)}</div></div>
       <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב מוצע</div><div style="font-size:14px;font-weight:700;color:${rColor}">&#8362;${fm(totalSug)}${ratio!==null?` (${ratio}%)`:''}</div></div>
     </div>
+    ${avgInc>0&&totalSug>=avgInc*MAX_RATIO*0.98?`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:#c2410c">&#9888; ההצעות הותאמו לא לחרוג מ-90% מהכנסתך הממוצעת</div>`:''}
     <div style="max-height:55vh;overflow-y:auto">${rows||'<div style="text-align:center;color:#94a3b8;padding:24px">אין מספיק נתונים לניתוח</div>'}</div>
     <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:8px">
       ${changed.length>0?`<div style="display:flex;gap:8px"><button id="applyBS" style="flex:2;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">החל ${changed.length} שינויים</button><button id="cBS2" style="flex:1;padding:12px;border-radius:10px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer">סגור</button></div>`:`<div style="text-align:center;color:#10b981;font-weight:700;font-size:13px">✓ כל התקציבים מאוזנים</div>`}
