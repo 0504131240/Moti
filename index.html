@@ -721,13 +721,6 @@ function rEntMod(){
     </div>
     <div style="height:5px;background:#f1f5f9;border-radius:3px;margin-bottom:10px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=100?'#ef4444':pct>=85?'#f97316':'#10b981'};border-radius:3px"></div></div>
     ${subBreakdown}
-    <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
-      <input class="inp" id="mD" placeholder="תיאור" style="flex:2;min-width:100px;padding:8px 10px"/>
-      <input class="inp" id="mA" type="number" placeholder="&#8362;" style="flex:1;min-width:70px;padding:8px 10px;font-size:15px;font-weight:700"/>
-      <input class="inp" id="mDt" type="date" value="${today()}" style="flex:1;min-width:100px;padding:8px 6px;font-size:11px"/>
-      <button id="mAd" style="padding:8px 12px;border-radius:10px;border:none;color:#fff;background:linear-gradient(135deg,#6366f1,#8b5cf6);font-size:20px;cursor:pointer">+</button>
-    </div>
-    ${subSel}
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <input class="inp" id="entSearch" placeholder="&#128269; חיפוש..." style="flex:1;padding:7px 10px;font-size:12px" value="${q}"/>
       <button id="sortBtn" style="padding:7px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:11px;cursor:pointer;white-space:nowrap">מיון: ${S.sortEnt==="date"?"תאריך":"סכום"}</button>
@@ -738,14 +731,6 @@ function rEntMod(){
 
   g("cE").onclick=()=>{ih("m1","");S.editEntId=null;rMon();};
   g("eO").onclick=e=>{if(e.target.id==="eO"){ih("m1","");S.editEntId=null;rMon();}};
-  g("mA").onkeydown=e=>{if(e.key==="Enter")g("mAd").click();};
-  g("mAd").onclick=()=>{
-    const a=parseFloat(g("mA").value);if(!a)return;
-    const subEl=g("mSub");
-    const subCat=subEl&&subEl.value?parseInt(subEl.value):null;
-    S.mData[S.month][S.aCat].entries.push({id:Date.now(),desc:(g("mD").value||"").trim(),amount:a,date:g("mDt").value||today(),recurring:false,subCat});
-    sv();rEntMod();
-  };
   g("entSearch").oninput=()=>rEntMod();
   g("sortBtn").onclick=()=>{S.sortEnt=S.sortEnt==="date"?"amount":"date";rEntMod();};
   document.querySelectorAll(".editEnt").forEach(b=>b.onclick=()=>{S.editEntId=parseInt(b.dataset.e);rEntMod();});
