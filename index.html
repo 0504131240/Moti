@@ -31,7 +31,7 @@ th{padding:10px 8px;color:#64748b;font-weight:600;text-align:center;font-size:12
 <body>
 <div id="hdr"></div>
 <div id="tlb"></div>
-<div id="cnt" style="padding:0 14px 16px"></div>
+<div id="cnt" style="padding:0 14px 90px"></div>
 <div id="m1"></div>
 <div id="m2"></div>
 <div id="m3"></div>
@@ -456,7 +456,7 @@ function rMon(){
       <span style="color:#64748b;font-size:13px">סה&quot;כ ${filtLabel} ${MO[S.month]}</span>
       <span style="font-size:20px;font-weight:800;color:#6366f1">&#8362;${fm(filtTotal)}</span>
     </div>
-    <button id="addExpBtn" style="width:100%;padding:13px;border-radius:14px;border:2px dashed #c7d2fe;background:#eef2ff;color:#6366f1;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:10px">&#10010; הוצאה חדשה</button>
+    <button id="addExpBtn" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;padding:15px 36px;border-radius:50px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;box-shadow:0 6px 24px rgba(99,102,241,.55);white-space:nowrap;letter-spacing:.3px">&#10010; הוצאה חדשה</button>
     ${filtBtns}
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}</div>
   `);
@@ -528,7 +528,9 @@ function rExpMod(){
         </div>
         <span style="font-size:22px">&#128260;</span>
       </label>
-      <button id="expSave" style="width:100%;padding:13px;border-radius:12px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,.3)">שמור הוצאה</button>
+      <div style="position:sticky;bottom:-24px;background:#fff;padding:10px 0 0;margin:8px -24px -24px;padding:10px 24px 20px;border-top:1px solid #f1f5f9">
+        <button id="expSave" style="width:100%;padding:14px;border-radius:12px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,.3)">שמור הוצאה</button>
+      </div>
     </div></div>`);
     g("cExp").onclick=()=>ih("m1","");
     g("expO").onclick=e=>{if(e.target.id==="expO")ih("m1","");};
