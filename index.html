@@ -1034,10 +1034,9 @@ function rBudgetSuggest(){
   const sugs=S.cats.map(cat=>{
     const varA=months.map(mo=>mo.ents[cat.id].filter(e=>!e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
     const recA=months.map(mo=>mo.ents[cat.id].filter(e=>e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
-    const nzVar=varA.filter(v=>v>0),nzRec=recA.filter(v=>v>0);
-    const avgVar=nzVar.length?nzVar.reduce((a,b)=>a+b,0)/nzVar.length:0;
-    const avgRec=nzRec.length?nzRec.reduce((a,b)=>a+b,0)/nzRec.length:0;
-    const hasV=nzVar.length>0,hasR=nzRec.length>0;
+    const avgVar=varA.length?varA.reduce((a,b)=>a+b,0)/varA.length:0;
+    const avgRec=recA.length?recA.reduce((a,b)=>a+b,0)/recA.length:0;
+    const hasV=varA.some(v=>v>0),hasR=recA.some(v=>v>0);
     const curVar=cat.budget||0,curRec=cat.budgetRec||0;
     let sugVar=curVar,sugRec=curRec,chV=0,chR=0,nV='',nR='';
     if(hasV){
@@ -1066,10 +1065,15 @@ function rBudgetSuggest(){
       });
     }
   }
-  let editIdx=-1;
+  const applyOne=(x)=>{
+    const c=S.cats.find(c=>c.id===x.cat.id);if(!c)return;
+    if(x.sugVar!==x.curVar){if(x.sugVar>0)c.budget=x.sugVar;else delete c.budget;}
+    if(x.sugRec!==x.curRec){if(x.sugRec>0)c.budgetRec=x.sugRec;else delete c.budgetRec;}
+    x.curVar=x.sugVar;x.curRec=x.sugRec;x.chV=0;x.chR=0;
+    sv();rMon();
+  };
   const applyFn=()=>{
-    sugs.forEach(x=>{const c=S.cats.find(c=>c.id===x.cat.id);if(!c)return;if(x.sugVar!==x.curVar){if(x.sugVar>0)c.budget=x.sugVar;else delete c.budget;}if(x.sugRec!==x.curRec){if(x.sugRec>0)c.budgetRec=x.sugRec;else delete c.budgetRec;}});
-    sv();ih("m2","");rMon();
+    sugs.forEach(applyOne);ih("m2","");
   };
   const arrow=(ch,val,note)=>ch!==0?`<span style="font-size:12px;color:#94a3b8">→</span><span style="font-size:13px;font-weight:700;color:${ch>0?'#ef4444':'#10b981'}">₪${fm(val)}</span><span style="font-size:10px;background:${ch>0?'#fee2e2':'#dcfce7'};color:${ch>0?'#b91c1c':'#15803d'};border-radius:6px;padding:1px 5px">${ch>0?'↑':'↓'}</span><span style="font-size:10px;color:#94a3b8;flex:1">${note}</span>`:`<span style="font-size:10px;color:#94a3b8;flex:1">${note}</span>`;
   const doRender=()=>{
@@ -1087,48 +1091,20 @@ function rBudgetSuggest(){
     if(g('bsSavM'))g('bsSavM').textContent=sm;
     const changed=sugs.filter(x=>x.sugVar!==x.curVar||x.sugRec!==x.curRec);
     const rowsH=sugs.map((x,idx)=>{
-      if(idx===editIdx){
-        const hV=x.curVar>0||x.sugVar>0,hR=x.curRec>0||x.sugRec>0;
-        return`<div style="padding:10px;border-radius:10px;background:#f0f4ff;border:2px solid #6366f1;margin-bottom:6px">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span><span style="font-size:11px;color:#6366f1;margin-right:auto">✏ עריכה</span></div>
-          <div style="display:flex;gap:8px;margin-bottom:8px">
-            ${hV?`<div style="flex:1"><div style="font-size:10px;color:#94a3b8;margin-bottom:3px">משתנה (₪)</div><input class="inp" id="bsEV${idx}" type="number" min="0" value="${x.sugVar}" style="width:100%;box-sizing:border-box"/></div>`:''}
-            ${hR?`<div style="flex:1"><div style="font-size:10px;color:#94a3b8;margin-bottom:3px">קבוע (₪)</div><input class="inp" id="bsER${idx}" type="number" min="0" value="${x.sugRec}" style="width:100%;box-sizing:border-box"/></div>`:''}
-          </div>
-          <div style="display:flex;gap:6px">
-            <button id="bsSv${idx}" style="flex:2;padding:8px;border-radius:8px;border:none;color:#fff;background:#6366f1;font-weight:700;cursor:pointer;font-size:13px">שמור</button>
-            <button id="bsCx${idx}" style="flex:1;padding:8px;border-radius:8px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer;font-size:13px">ביטול</button>
-          </div>
-        </div>`;
-      }
       const hasChg=x.sugVar!==x.curVar||x.sugRec!==x.curRec;
       const vL=(x.curVar>0||x.sugVar>0)?`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">משתנה</span><span style="font-size:12px;color:#64748b">₪${fm(x.curVar)}</span>${arrow(x.chV,x.sugVar,x.nV)}</div>`:'';
       const rL=(x.curRec>0||x.sugRec>0)?`<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">קבוע</span><span style="font-size:12px;color:#64748b">₪${fm(x.curRec)}</span>${arrow(x.chR,x.sugRec,x.nR)}</div>`:'';
       if(!vL&&!rL)return'';
-      return`<div data-idx="${idx}" style="padding:10px;border-radius:10px;background:${hasChg?'#f8faff':'#fff'};border:1px solid ${hasChg?'#c7d2fe':'#f1f5f9'};margin-bottom:6px;cursor:pointer"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span>${hasChg?'<span style="font-size:10px;background:#fff7ed;color:#d97706;border-radius:6px;padding:1px 6px">שינוי מוצע</span>':'<span style="font-size:10px;color:#10b981">✓ מאוזן</span>'}<span style="font-size:13px;color:#94a3b8;margin-right:auto">✏</span></div>${vL}${rL}</div>`;
+      return`<div data-idx="${idx}" style="padding:10px;border-radius:10px;background:${hasChg?'#f8faff':'#fff'};border:1px solid ${hasChg?'#c7d2fe':'#f1f5f9'};margin-bottom:6px;${hasChg?'cursor:pointer;':''}" title="${hasChg?'לחץ להחלת הצעה זו':''}"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span>${hasChg?'<span style="font-size:10px;background:#fff7ed;color:#d97706;border-radius:6px;padding:1px 6px">שינוי מוצע</span><span style="font-size:10px;color:#6366f1;margin-right:auto">← החל</span>':'<span style="font-size:10px;color:#10b981;margin-right:auto">✓ מאוזן</span>'}</div>${vL}${rL}</div>`;
     }).filter(r=>r).join('');
     g('bsList').innerHTML=rowsH||'<div style="text-align:center;color:#94a3b8;padding:24px">אין מספיק נתונים לניתוח</div>';
-    g('bsApply').innerHTML=changed.length>0?`<div style="display:flex;gap:8px"><button id="applyBS" style="flex:2;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">החל ${changed.length} שינויים</button><button id="cBS2" style="flex:1;padding:12px;border-radius:10px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer">סגור</button></div>`:`<div style="text-align:center;color:#10b981;font-weight:700;font-size:13px">✓ כל התקציבים מאוזנים</div>`;
+    g('bsApply').innerHTML=changed.length>0?`<div style="display:flex;gap:8px"><button id="applyBS" style="flex:2;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">החל את כל ${changed.length} השינויים</button><button id="cBS2" style="flex:1;padding:12px;border-radius:10px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer">סגור</button></div>`:`<div style="text-align:center;color:#10b981;font-weight:700;font-size:13px">✓ כל התקציבים מאוזנים</div>`;
     if(g('applyBS'))g('applyBS').onclick=applyFn;
     if(g('cBS2'))g('cBS2').onclick=()=>ih('m2','');
     g('bsList').querySelectorAll('[data-idx]').forEach(el=>{
-      el.onclick=()=>{editIdx=parseInt(el.dataset.idx);doRender();};
+      const x=sugs[parseInt(el.dataset.idx)];
+      if(x.sugVar!==x.curVar||x.sugRec!==x.curRec)el.onclick=()=>{applyOne(x);doRender();};
     });
-    if(editIdx>=0){
-      const i=editIdx;
-      if(g('bsSv'+i))g('bsSv'+i).onclick=()=>{
-        const x=sugs[i];
-        const nv=Math.max(0,parseFloat(g('bsEV'+i)?.value)||0);
-        const nr=Math.max(0,parseFloat(g('bsER'+i)?.value)||0);
-        x.sugVar=nv;x.sugRec=nr;
-        x.chV=nv!==x.curVar?(nv<x.curVar?-1:1):0;
-        x.chR=nr!==x.curRec?(nr<x.curRec?-1:1):0;
-        x.nV=nv!==x.curVar?'עריכה ידנית':`ממוצע ₪${fm(Math.round(x.avgVar))} — מאוזן`;
-        x.nR=nr!==x.curRec?'עריכה ידנית':`ממוצע ₪${fm(Math.round(x.avgRec))} — מאוזן`;
-        editIdx=-1;doRender();
-      };
-      if(g('bsCx'+i))g('bsCx'+i).onclick=()=>{editIdx=-1;doRender();};
-    }
   };
   ih("m2",`<div class="overlay" id="bsO"><div class="modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
