@@ -95,6 +95,31 @@ function fbSave(){
   if(!db||!_setDoc||!_doc)return;
   _setDoc(_doc(db,'budget',CUR_UID+'_'+String(S.year)),{cats:S.cats,mData:S.mData}).catch(e=>console.warn('FB save:',e));
 }
+function saveBudgets(){
+  const bdata=S.cats.map(c=>({id:c.id,budget:c.budget||0,budgetRec:c.budgetRec||0,subs:(c.subs||[]).map(s=>({id:s.id,budget:s.budget||0}))}));
+  try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
+  if(db&&_setDoc&&_doc)_setDoc(_doc(db,'budget','_bud_'+CUR_UID),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
+}
+function applyBudgets(cats){
+  try{
+    const r=localStorage.getItem('bdg_bud_'+CUR_UID);if(!r)return;
+    JSON.parse(r).forEach(b=>{
+      const c=cats.find(c=>c.id===b.id);if(!c)return;
+      if(b.budget>0)c.budget=b.budget;else delete c.budget;
+      if(b.budgetRec>0)c.budgetRec=b.budgetRec;else delete c.budgetRec;
+      if(b.subs&&c.subs)b.subs.forEach(sb=>{const s=c.subs.find(s=>s.id===sb.id);if(s){if(sb.budget>0)s.budget=sb.budget;else delete s.budget;}});
+    });
+  }catch{}
+}
+function fbLoadBudgets(){
+  if(!db||!_getDoc||!_doc)return;
+  _getDoc(_doc(db,'budget','_bud_'+CUR_UID)).then(snap=>{
+    if(!snap.exists())return;
+    const bdata=snap.data().b||[];
+    try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
+    applyBudgets(S.cats);rAll();
+  }).catch(e=>console.warn('FB bud load:',e));
+}
 function fbListen(year){
   if(!db||!_onSnapshot||!_doc){return;}
   if(unsubFire)unsubFire();
@@ -103,6 +128,7 @@ function fbListen(year){
     const d=snap.data();
     S.cats=d.cats||DF.map(c=>({...c}));
     S.mData=d.mData||iMD(S.cats);
+    applyBudgets(S.cats);
     eC(S.cats,S.mData);
     try{localStorage.setItem(sk(year),JSON.stringify({cats:S.cats,mData:S.mData}));}catch{}
     const open=['m1','m2','m3'].some(id=>{const el=g(id);return el&&el.innerHTML.trim();});
@@ -152,9 +178,11 @@ function ld(){
       if(!inh){S.cats=DF.map(c=>({...c}));S.mData=iMD(S.cats);}
     }
   }catch{S.cats=DF.map(c=>({...c}));S.mData=iMD(S.cats);}
+  applyBudgets(S.cats);
 }
 function sv(){
   try{localStorage.setItem(sk(S.year),JSON.stringify({cats:S.cats,mData:S.mData}));}catch{}
+  saveBudgets();
   fbSave();
 }
 function fm(n){return Number(n||0).toLocaleString("he-IL");}
@@ -1202,6 +1230,7 @@ loadUsers();ld();rLockScreen();
     catch(e){db=m.getFirestore(fbApp);}
     _doc=m.doc;_setDoc=m.setDoc;_onSnapshot=m.onSnapshot;_getDoc=m.getDoc;
     fbLoadUsers();
+    fbLoadBudgets();
     fbListen(S.year);
   }catch(e){
     console.warn('Firebase unavailable:',e);
