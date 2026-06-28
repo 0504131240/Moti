@@ -1013,7 +1013,8 @@ function rUserMod(editId=null,pinId=null,switchId=null){
 function rBudgetSuggest(){
   const N=6;
   const months=[];
-  for(let i=1;i<=N;i++){
+  // i=0 = current month, up to N-1 months back
+  for(let i=0;i<N;i++){
     const offset=S.month-i;
     const m=((offset%12)+12)%12;
     const y=S.year+Math.floor(offset/12);
@@ -1029,92 +1030,131 @@ function rBudgetSuggest(){
   const r50=n=>n>0?Math.ceil(n/50)*50:0;
   const incomes=months.map(mo=>mo.inc).filter(v=>v>0);
   const avgInc=incomes.length?incomes.reduce((a,b)=>a+b,0)/incomes.length:0;
-  // Target: reserve at least 20% of income for savings → cap expenses at 80%
   const MAX_RATIO=0.8;
   const sugs=S.cats.map(cat=>{
     const varA=months.map(mo=>mo.ents[cat.id].filter(e=>!e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
     const recA=months.map(mo=>mo.ents[cat.id].filter(e=>e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
-    const nzVar=varA.filter(v=>v>0),nzRec=recA.filter(v=>v>0);
-    const avgVar=nzVar.length?nzVar.reduce((a,b)=>a+b,0)/nzVar.length:0;
-    const avgRec=nzRec.length?nzRec.reduce((a,b)=>a+b,0)/nzRec.length:0;
+    // Use peak month (not average) — budget should cover the highest-spending month
+    const peakVar=varA.length?Math.max(...varA):0;
+    const peakRec=recA.length?Math.max(...recA):0;
+    const hasV=varA.some(v=>v>0),hasR=recA.some(v=>v>0);
     const curVar=cat.budget||0,curRec=cat.budgetRec||0;
     let sugVar=curVar,sugRec=curRec,chV=0,chR=0,nV='',nR='';
-    if(avgVar>0){
-      if(avgVar>curVar*1.05||curVar===0){sugVar=r50(avgVar*1.15);chV=1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
-      // Lower threshold to 70%: consistently well under budget → suggest reducing to free up money
-      else if(curVar>0&&avgVar<curVar*0.7){sugVar=r50(avgVar*1.25);chV=-1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
-      else{nV=`ממוצע ₪${fm(Math.round(avgVar))} — מאוזן`;}
-    }else if(curVar>0){
-      // No spending at all in 6 months → suggest removing budget
-      sugVar=0;chV=-1;nV='ללא שימוש ב-6 חודשים';
-    }
-    if(avgRec>0){
-      if(avgRec>curRec*1.05||curRec===0){sugRec=r50(avgRec*1.1);chR=1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
-      else if(curRec>0&&avgRec<curRec*0.7){sugRec=r50(avgRec*1.15);chR=-1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
-      else{nR=`ממוצע ₪${fm(Math.round(avgRec))} — מאוזן`;}
-    }else if(curRec>0){
-      sugRec=0;chR=-1;nR='ללא הוצאות קבועות ב-6 חודשים';
-    }
-    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec};
+    if(hasV){
+      if(peakVar>curVar*1.05||curVar===0){sugVar=r50(peakVar*1.15);chV=1;nV=`שיא ₪${fm(Math.round(peakVar))}`;}
+      else if(curVar>0&&peakVar<curVar*0.7){sugVar=r50(peakVar*1.25);chV=-1;nV=`שיא ₪${fm(Math.round(peakVar))}`;}
+      else{nV=`שיא ₪${fm(Math.round(peakVar))} — מאוזן`;}
+    }else if(curVar>0){sugVar=0;chV=-1;nV='ללא שימוש ב-6 חודשים';}
+    if(hasR){
+      if(peakRec>curRec*1.05||curRec===0){sugRec=r50(peakRec*1.1);chR=1;nR=`שיא ₪${fm(Math.round(peakRec))}`;}
+      else if(curRec>0&&peakRec<curRec*0.7){sugRec=r50(peakRec*1.15);chR=-1;nR=`שיא ₪${fm(Math.round(peakRec))}`;}
+      else{nR=`שיא ₪${fm(Math.round(peakRec))} — מאוזן`;}
+    }else if(curRec>0){sugRec=0;chR=-1;nR='ללא הוצאות קבועות ב-6 חודשים';}
+    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,peakVar,peakRec};
   });
   const totalCur=S.cats.reduce((s,c)=>s+(c.budget||0)+(c.budgetRec||0),0);
-  let totalSug=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
   let scaledForIncome=false;
-  if(avgInc>0&&totalSug>avgInc*MAX_RATIO){
-    scaledForIncome=true;
-    const scale=(avgInc*MAX_RATIO)/totalSug;
-    sugs.forEach(x=>{
-      const newVar=r50(x.sugVar*scale),newRec=r50(x.sugRec*scale);
-      if(newVar!==x.sugVar){x.sugVar=newVar;x.chV=newVar<x.curVar?-1:newVar>x.curVar?1:0;if(!x.nV)x.nV=`ממוצע ₪${fm(Math.round(x.avgVar))}`;}
-      if(newRec!==x.sugRec){x.sugRec=newRec;x.chR=newRec<x.curRec?-1:newRec>x.curRec?1:0;if(!x.nR)x.nR=`ממוצע ₪${fm(Math.round(x.avgRec))}`;}
-    });
-    totalSug=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+  {
+    let ts=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+    if(avgInc>0&&ts>avgInc*MAX_RATIO){
+      scaledForIncome=true;
+      const scale=(avgInc*MAX_RATIO)/ts;
+      sugs.forEach(x=>{
+        const nV2=r50(x.sugVar*scale),nR2=r50(x.sugRec*scale);
+        if(nV2!==x.sugVar){x.sugVar=nV2;x.chV=nV2<x.curVar?-1:nV2>x.curVar?1:0;}
+        if(nR2!==x.sugRec){x.sugRec=nR2;x.chR=nR2<x.curRec?-1:nR2>x.curRec?1:0;}
+      });
+    }
   }
-  const sugSavings=avgInc>0?avgInc-totalSug:null;
-  const ratio=avgInc>0?Math.round(totalSug/avgInc*100):null;
-  const rColor=ratio===null?'#64748b':ratio>90?'#ef4444':ratio>80?'#f59e0b':ratio>65?'#6366f1':'#10b981';
-  const savColor=sugSavings===null?'#64748b':sugSavings<0?'#ef4444':sugSavings<avgInc*0.1?'#f59e0b':sugSavings<avgInc*0.2?'#6366f1':'#10b981';
-  const savMsg=sugSavings===null?'':sugSavings<0?'התקציב המוצע חורג מההכנסה':sugSavings<avgInc*0.1?'מומלץ לחסוך לפחות 20% — שקול להוריד תקציבים':sugSavings<avgInc*0.2?'קרוב ליעד — מומלץ להגדיל מעט':'חיסכון מצוין!';
-  const changed=sugs.filter(x=>x.sugVar!==x.curVar||x.sugRec!==x.curRec);
+  let editIdx=-1;
+  const applyFn=()=>{
+    sugs.forEach(x=>{const c=S.cats.find(c=>c.id===x.cat.id);if(!c)return;if(x.sugVar!==x.curVar){if(x.sugVar>0)c.budget=x.sugVar;else delete c.budget;}if(x.sugRec!==x.curRec){if(x.sugRec>0)c.budgetRec=x.sugRec;else delete c.budgetRec;}});
+    sv();ih("m2","");rMon();
+  };
   const arrow=(ch,val,note)=>ch!==0?`<span style="font-size:12px;color:#94a3b8">→</span><span style="font-size:13px;font-weight:700;color:${ch>0?'#ef4444':'#10b981'}">₪${fm(val)}</span><span style="font-size:10px;background:${ch>0?'#fee2e2':'#dcfce7'};color:${ch>0?'#b91c1c':'#15803d'};border-radius:6px;padding:1px 5px">${ch>0?'↑':'↓'}</span><span style="font-size:10px;color:#94a3b8;flex:1">${note}</span>`:`<span style="font-size:10px;color:#94a3b8;flex:1">${note}</span>`;
-  const rows=sugs.map(x=>{
-    const hasChg=x.sugVar!==x.curVar||x.sugRec!==x.curRec;
-    const vL=(x.curVar>0||x.sugVar>0)?`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">משתנה</span><span style="font-size:12px;color:#64748b">₪${fm(x.curVar)}</span>${arrow(x.chV,x.sugVar,x.nV)}</div>`:'';
-    const rL=(x.curRec>0||x.sugRec>0)?`<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">קבוע</span><span style="font-size:12px;color:#64748b">₪${fm(x.curRec)}</span>${arrow(x.chR,x.sugRec,x.nR)}</div>`:'';
-    if(!vL&&!rL)return'';
-    return`<div style="padding:10px;border-radius:10px;background:${hasChg?'#f8faff':'#fff'};border:1px solid ${hasChg?'#c7d2fe':'#f1f5f9'};margin-bottom:6px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span>${hasChg?'<span style="font-size:10px;background:#fff7ed;color:#d97706;border-radius:6px;padding:1px 6px;margin-right:auto">שינוי מוצע</span>':'<span style="font-size:10px;color:#10b981;margin-right:auto">✓ מאוזן</span>'}</div>${vL}${rL}</div>`;
-  }).filter(r=>r).join('');
+  const doRender=()=>{
+    const ts=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+    const sav=avgInc>0?avgInc-ts:null;
+    const rat=avgInc>0?Math.round(ts/avgInc*100):null;
+    const rc=rat===null?'#64748b':rat>90?'#ef4444':rat>80?'#f59e0b':rat>65?'#6366f1':'#10b981';
+    const sc=sav===null?'#64748b':sav<0?'#ef4444':sav<avgInc*0.1?'#f59e0b':sav<avgInc*0.2?'#6366f1':'#10b981';
+    const sm=sav===null?'':sav<0?'התקציב חורג מהכנסה':sav<avgInc*0.1?'מומלץ לחסוך לפחות 20%':sav<avgInc*0.2?'קרוב ליעד — מומלץ להגדיל מעט':'חיסכון מצוין!';
+    const bg=sav===null||sav<0?'#fef2f2':sav<avgInc*0.2?'#fff7ed':'#f0fdf4';
+    const bd=sav===null||sav<0?'#fecaca':sav<avgInc*0.2?'#fed7aa':'#bbf7d0';
+    if(g('bsSugT')){g('bsSugT').textContent=`₪${fm(ts)}${rat!==null?` (${rat}%)`:''}`;g('bsSugT').style.color=rc;}
+    if(g('bsSavC')){g('bsSavC').style.background=bg;g('bsSavC').style.borderColor=bd;}
+    if(g('bsSavA')){g('bsSavA').textContent=`₪${fm(Math.round(Math.max(0,sav||0)))}`;g('bsSavA').style.color=sc;}
+    if(g('bsSavM'))g('bsSavM').textContent=sm;
+    const changed=sugs.filter(x=>x.sugVar!==x.curVar||x.sugRec!==x.curRec);
+    const rowsH=sugs.map((x,idx)=>{
+      if(idx===editIdx){
+        const hV=x.curVar>0||x.sugVar>0,hR=x.curRec>0||x.sugRec>0;
+        return`<div style="padding:10px;border-radius:10px;background:#f0f4ff;border:2px solid #6366f1;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span><span style="font-size:11px;color:#6366f1;margin-right:auto">✏ עריכה</span></div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            ${hV?`<div style="flex:1"><div style="font-size:10px;color:#94a3b8;margin-bottom:3px">משתנה (₪)</div><input class="inp" id="bsEV${idx}" type="number" min="0" value="${x.sugVar}" style="width:100%;box-sizing:border-box"/></div>`:''}
+            ${hR?`<div style="flex:1"><div style="font-size:10px;color:#94a3b8;margin-bottom:3px">קבוע (₪)</div><input class="inp" id="bsER${idx}" type="number" min="0" value="${x.sugRec}" style="width:100%;box-sizing:border-box"/></div>`:''}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button id="bsSv${idx}" style="flex:2;padding:8px;border-radius:8px;border:none;color:#fff;background:#6366f1;font-weight:700;cursor:pointer;font-size:13px">שמור</button>
+            <button id="bsCx${idx}" style="flex:1;padding:8px;border-radius:8px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer;font-size:13px">ביטול</button>
+          </div>
+        </div>`;
+      }
+      const hasChg=x.sugVar!==x.curVar||x.sugRec!==x.curRec;
+      const vL=(x.curVar>0||x.sugVar>0)?`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">משתנה</span><span style="font-size:12px;color:#64748b">₪${fm(x.curVar)}</span>${arrow(x.chV,x.sugVar,x.nV)}</div>`:'';
+      const rL=(x.curRec>0||x.sugRec>0)?`<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">קבוע</span><span style="font-size:12px;color:#64748b">₪${fm(x.curRec)}</span>${arrow(x.chR,x.sugRec,x.nR)}</div>`:'';
+      if(!vL&&!rL)return'';
+      return`<div data-idx="${idx}" style="padding:10px;border-radius:10px;background:${hasChg?'#f8faff':'#fff'};border:1px solid ${hasChg?'#c7d2fe':'#f1f5f9'};margin-bottom:6px;cursor:pointer"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span>${hasChg?'<span style="font-size:10px;background:#fff7ed;color:#d97706;border-radius:6px;padding:1px 6px">שינוי מוצע</span>':'<span style="font-size:10px;color:#10b981">✓ מאוזן</span>'}<span style="font-size:13px;color:#94a3b8;margin-right:auto">✏</span></div>${vL}${rL}</div>`;
+    }).filter(r=>r).join('');
+    g('bsList').innerHTML=rowsH||'<div style="text-align:center;color:#94a3b8;padding:24px">אין מספיק נתונים לניתוח</div>';
+    g('bsApply').innerHTML=changed.length>0?`<div style="display:flex;gap:8px"><button id="applyBS" style="flex:2;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">החל ${changed.length} שינויים</button><button id="cBS2" style="flex:1;padding:12px;border-radius:10px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer">סגור</button></div>`:`<div style="text-align:center;color:#10b981;font-weight:700;font-size:13px">✓ כל התקציבים מאוזנים</div>`;
+    if(g('applyBS'))g('applyBS').onclick=applyFn;
+    if(g('cBS2'))g('cBS2').onclick=()=>ih('m2','');
+    g('bsList').querySelectorAll('[data-idx]').forEach(el=>{
+      el.onclick=()=>{editIdx=parseInt(el.dataset.idx);doRender();};
+    });
+    if(editIdx>=0){
+      const i=editIdx;
+      if(g('bsSv'+i))g('bsSv'+i).onclick=()=>{
+        const x=sugs[i];
+        const nv=Math.max(0,parseFloat(g('bsEV'+i)?.value)||0);
+        const nr=Math.max(0,parseFloat(g('bsER'+i)?.value)||0);
+        x.sugVar=nv;x.sugRec=nr;
+        x.chV=nv!==x.curVar?(nv<x.curVar?-1:1):0;
+        x.chR=nr!==x.curRec?(nr<x.curRec?-1:1):0;
+        x.nV=nv!==x.curVar?'עריכה ידנית':`שיא ₪${fm(Math.round(x.peakVar))} — מאוזן`;
+        x.nR=nr!==x.curRec?'עריכה ידנית':`שיא ₪${fm(Math.round(x.peakRec))} — מאוזן`;
+        editIdx=-1;doRender();
+      };
+      if(g('bsCx'+i))g('bsCx'+i).onclick=()=>{editIdx=-1;doRender();};
+    }
+  };
   ih("m2",`<div class="overlay" id="bsO"><div class="modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div><div style="font-size:17px;font-weight:800;color:#1e293b">&#128161; הצעות תקציב</div><div style="font-size:11px;color:#94a3b8">ניתוח ${N} חודשים אחרונים</div></div>
+      <div><div style="font-size:17px;font-weight:800;color:#1e293b">&#128161; הצעות תקציב</div><div style="font-size:11px;color:#94a3b8">ניתוח ${N} חודשים — כולל חודש נוכחי</div></div>
       <button id="cBS" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px">
       ${avgInc>0?`<div style="flex:1;background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;border:1px solid #bbf7d0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">הכנסה ממוצעת</div><div style="font-size:14px;font-weight:700;color:#059669">&#8362;${fm(Math.round(avgInc))}</div></div>`:''}
       <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב נוכחי</div><div style="font-size:14px;font-weight:700;color:#6366f1">&#8362;${fm(totalCur)}</div></div>
-      <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב מוצע</div><div style="font-size:14px;font-weight:700;color:${rColor}">&#8362;${fm(totalSug)}${ratio!==null?` (${ratio}%)`:''}</div></div>
+      <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב מוצע</div><div id="bsSugT" style="font-size:14px;font-weight:700;color:#6366f1">—</div></div>
     </div>
-    ${avgInc>0?`<div style="background:${sugSavings>=avgInc*0.2?'#f0fdf4':sugSavings>=0?'#fff7ed':'#fef2f2'};border:1px solid ${sugSavings>=avgInc*0.2?'#bbf7d0':sugSavings>=0?'#fed7aa':'#fecaca'};border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    ${avgInc>0?`<div id="bsSavC" style="border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #e2e8f0">
       <div style="flex:1">
         <div style="font-size:11px;color:#64748b;margin-bottom:3px">&#128176; יתרה חודשית מוצעת לחיסכון</div>
-        <div style="font-size:18px;font-weight:800;color:${savColor}">₪${fm(Math.round(Math.max(0,sugSavings)))}</div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:2px">${savMsg}</div>
+        <div id="bsSavA" style="font-size:18px;font-weight:800;color:#64748b">—</div>
+        <div id="bsSavM" style="font-size:10px;color:#94a3b8;margin-top:2px"></div>
       </div>
       <div style="font-size:30px;flex-shrink:0">&#128176;</div>
     </div>`:''}
     ${scaledForIncome?`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:#c2410c">&#9888; ההצעות הותאמו לשמור לפחות 20% מהכנסתך לחיסכון</div>`:''}
-    <div style="max-height:42vh;overflow-y:auto">${rows||'<div style="text-align:center;color:#94a3b8;padding:24px">אין מספיק נתונים לניתוח</div>'}</div>
-    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:8px">
-      ${changed.length>0?`<div style="display:flex;gap:8px"><button id="applyBS" style="flex:2;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">החל ${changed.length} שינויים</button><button id="cBS2" style="flex:1;padding:12px;border-radius:10px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer">סגור</button></div>`:`<div style="text-align:center;color:#10b981;font-weight:700;font-size:13px">✓ כל התקציבים מאוזנים</div>`}
-    </div>
+    <div id="bsList" style="max-height:42vh;overflow-y:auto;margin-bottom:4px"></div>
+    <div id="bsApply" style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:8px"></div>
   </div></div>`);
   g("cBS").onclick=()=>ih("m2","");
-  if(g("cBS2"))g("cBS2").onclick=()=>ih("m2","");
   g("bsO").onclick=e=>{if(e.target.id==="bsO")ih("m2","");};
-  if(g("applyBS"))g("applyBS").onclick=()=>{
-    sugs.forEach(x=>{const c=S.cats.find(c=>c.id===x.cat.id);if(!c)return;if(x.sugVar!==x.curVar){if(x.sugVar>0)c.budget=x.sugVar;else delete c.budget;}if(x.sugRec!==x.curRec){if(x.sugRec>0)c.budgetRec=x.sugRec;else delete c.budgetRec;}});
-    sv();ih("m2","");rMon();
-  };
+  doRender();
 }
 
 function doCSV(){
