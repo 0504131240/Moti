@@ -354,11 +354,13 @@ function rTlb(){
       <button id="vy" style="padding:5px 14px;border-radius:7px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:${S.view==='yearly'?'linear-gradient(135deg,#6366f1,#8b5cf6)':'transparent'};color:${S.view==='yearly'?'#fff':'#64748b'}">שנתי</button>
     </div>
     <button id="oA" style="padding:7px 14px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">+ קטגוריה</button>
+    <button id="oBudSug" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#f59e0b,#d97706);cursor:pointer">&#128161; הצעות</button>
     <button id="oE" style="padding:7px 14px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#0ea5e9,#0284c7);cursor:pointer">&#11015; CSV</button>
   </div>`);
   g("vm").onclick=()=>{S.view="monthly";rTlb();rCnt();};
   g("vy").onclick=()=>{S.view="yearly";rTlb();rCnt();};
   g("oA").onclick=()=>rAddMod();
+  g("oBudSug").onclick=()=>rBudgetSuggest();
   g("oE").onclick=doCSV;
 }
 
@@ -1006,6 +1008,82 @@ function rUserMod(editId=null,pinId=null,switchId=null){
   });
   if(editId)requestAnimationFrame(()=>{const el=g("editUN");if(el)el.focus();});
   if(pinId)requestAnimationFrame(()=>{const el=g("pinInput");if(el)el.focus();});
+}
+
+function rBudgetSuggest(){
+  const N=6;
+  const months=[];
+  for(let i=1;i<=N;i++){
+    const offset=S.month-i;
+    const m=((offset%12)+12)%12;
+    const y=S.year+Math.floor(offset/12);
+    let ents={},inc=0;
+    if(y===S.year){
+      S.cats.forEach(c=>{ents[c.id]=S.mData[m]?.[c.id]?.entries||[];});
+      inc=incT(m);
+    }else{
+      try{const d=JSON.parse(localStorage.getItem('bdg_v4_'+CUR_UID+'_'+y)||'{}');S.cats.forEach(c=>{ents[c.id]=d.mData?.[m]?.[c.id]?.entries||[];});inc=(d.mData?.[m]?.income||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);}catch{}
+    }
+    months.push({m,y,ents,inc});
+  }
+  const r50=n=>Math.ceil(n/50)*50;
+  const incomes=months.map(mo=>mo.inc).filter(v=>v>0);
+  const avgInc=incomes.length?incomes.reduce((a,b)=>a+b,0)/incomes.length:0;
+  const sugs=S.cats.map(cat=>{
+    const varA=months.map(mo=>mo.ents[cat.id].filter(e=>!e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
+    const recA=months.map(mo=>mo.ents[cat.id].filter(e=>e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
+    const nzVar=varA.filter(v=>v>0),nzRec=recA.filter(v=>v>0);
+    const avgVar=nzVar.length?nzVar.reduce((a,b)=>a+b,0)/nzVar.length:0;
+    const avgRec=nzRec.length?nzRec.reduce((a,b)=>a+b,0)/nzRec.length:0;
+    const curVar=cat.budget||0,curRec=cat.budgetRec||0;
+    let sugVar=curVar,sugRec=curRec,chV=0,chR=0,nV='',nR='';
+    if(avgVar>0){
+      if(avgVar>curVar*1.05||curVar===0){sugVar=r50(avgVar*1.15);chV=1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
+      else if(curVar>0&&avgVar<curVar*0.55){sugVar=r50(avgVar*1.25);chV=-1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
+      else{nV=`ממוצע ₪${fm(Math.round(avgVar))} — מאוזן`;}
+    }else if(curVar>0){nV='אין הוצאות ב-6 חודשים';}
+    if(avgRec>0){
+      if(avgRec>curRec*1.05||curRec===0){sugRec=r50(avgRec*1.1);chR=1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
+      else if(curRec>0&&avgRec<curRec*0.6){sugRec=r50(avgRec*1.15);chR=-1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
+      else{nR=`ממוצע ₪${fm(Math.round(avgRec))} — מאוזן`;}
+    }
+    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec};
+  });
+  const totalCur=S.cats.reduce((s,c)=>s+(c.budget||0)+(c.budgetRec||0),0);
+  const totalSug=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
+  const ratio=avgInc>0?Math.round(totalSug/avgInc*100):null;
+  const rColor=ratio===null?'#64748b':ratio>90?'#ef4444':ratio>75?'#f59e0b':'#10b981';
+  const changed=sugs.filter(x=>x.sugVar!==x.curVar||x.sugRec!==x.curRec);
+  const arrow=(ch,val,note)=>ch!==0?`<span style="font-size:12px;color:#94a3b8">→</span><span style="font-size:13px;font-weight:700;color:${ch>0?'#ef4444':'#10b981'}">₪${fm(val)}</span><span style="font-size:10px;background:${ch>0?'#fee2e2':'#dcfce7'};color:${ch>0?'#b91c1c':'#15803d'};border-radius:6px;padding:1px 5px">${ch>0?'↑':'↓'}</span><span style="font-size:10px;color:#94a3b8;flex:1">${note}</span>`:`<span style="font-size:10px;color:#94a3b8;flex:1">${note}</span>`;
+  const rows=sugs.map(x=>{
+    const hasChg=x.sugVar!==x.curVar||x.sugRec!==x.curRec;
+    const vL=(x.curVar>0||x.sugVar>0)?`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">משתנה</span><span style="font-size:12px;color:#64748b">₪${fm(x.curVar)}</span>${arrow(x.chV,x.sugVar,x.nV)}</div>`:'';
+    const rL=(x.curRec>0||x.sugRec>0)?`<div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:#94a3b8;width:36px;flex-shrink:0">קבוע</span><span style="font-size:12px;color:#64748b">₪${fm(x.curRec)}</span>${arrow(x.chR,x.sugRec,x.nR)}</div>`:'';
+    if(!vL&&!rL)return'';
+    return`<div style="padding:10px;border-radius:10px;background:${hasChg?'#f8faff':'#fff'};border:1px solid ${hasChg?'#c7d2fe':'#f1f5f9'};margin-bottom:6px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><div style="width:8px;height:8px;border-radius:50%;background:${x.cat.color};flex-shrink:0"></div><span style="font-weight:700;font-size:13px;color:#1e293b">${x.cat.name}</span>${hasChg?'<span style="font-size:10px;background:#fff7ed;color:#d97706;border-radius:6px;padding:1px 6px;margin-right:auto">שינוי מוצע</span>':'<span style="font-size:10px;color:#10b981;margin-right:auto">✓ מאוזן</span>'}</div>${vL}${rL}</div>`;
+  }).filter(r=>r).join('');
+  ih("m2",`<div class="overlay" id="bsO"><div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div><div style="font-size:17px;font-weight:800;color:#1e293b">&#128161; הצעות תקציב</div><div style="font-size:11px;color:#94a3b8">ניתוח ${N} חודשים אחרונים</div></div>
+      <button id="cBS" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      ${avgInc>0?`<div style="flex:1;background:#f0fdf4;border-radius:9px;padding:9px;text-align:center;border:1px solid #bbf7d0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">הכנסה ממוצעת</div><div style="font-size:14px;font-weight:700;color:#059669">&#8362;${fm(Math.round(avgInc))}</div></div>`:''}
+      <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב נוכחי</div><div style="font-size:14px;font-weight:700;color:#6366f1">&#8362;${fm(totalCur)}</div></div>
+      <div style="flex:1;background:#f8faff;border-radius:9px;padding:9px;text-align:center;border:1px solid #e2e8f0"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב מוצע</div><div style="font-size:14px;font-weight:700;color:${rColor}">&#8362;${fm(totalSug)}${ratio!==null?` (${ratio}%)`:''}</div></div>
+    </div>
+    <div style="max-height:55vh;overflow-y:auto">${rows||'<div style="text-align:center;color:#94a3b8;padding:24px">אין מספיק נתונים לניתוח</div>'}</div>
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:8px">
+      ${changed.length>0?`<div style="display:flex;gap:8px"><button id="applyBS" style="flex:2;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">החל ${changed.length} שינויים</button><button id="cBS2" style="flex:1;padding:12px;border-radius:10px;border:none;color:#64748b;background:#f1f5f9;cursor:pointer">סגור</button></div>`:`<div style="text-align:center;color:#10b981;font-weight:700;font-size:13px">✓ כל התקציבים מאוזנים</div>`}
+    </div>
+  </div></div>`);
+  g("cBS").onclick=()=>ih("m2","");
+  if(g("cBS2"))g("cBS2").onclick=()=>ih("m2","");
+  g("bsO").onclick=e=>{if(e.target.id==="bsO")ih("m2","");};
+  if(g("applyBS"))g("applyBS").onclick=()=>{
+    sugs.forEach(x=>{const c=S.cats.find(c=>c.id===x.cat.id);if(!c)return;if(x.sugVar!==x.curVar)c.budget=x.sugVar;if(x.sugRec!==x.curRec){if(x.sugRec>0)c.budgetRec=x.sugRec;else delete c.budgetRec;}});
+    sv();ih("m2","");rMon();
+  };
 }
 
 function doCSV(){
