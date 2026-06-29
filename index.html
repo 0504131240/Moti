@@ -938,35 +938,42 @@ async function authBiometric(uid,onOk,onFail){
   }catch(e){console.warn('authBio:',e);onFail&&onFail();}
 }
 
-function rLockScreen(){
+function rLockScreen(showPin=false){
   const u=USERS.find(u=>u.id===CUR_UID);
   if(!u?.pin||isUnlocked(CUR_UID)){rAll();return;}
   const cnt=g('cnt');
-  const showBio=canUseBiometric()&&hasBiometric(CUR_UID);
+  const useBio=canUseBiometric()&&hasBiometric(CUR_UID);
+  const pinMode=showPin||!useBio;
   cnt.innerHTML=`<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 24px">
-    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff">&#128274;</div>
+    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:${pinMode?'30':'36'}px;font-weight:800;color:#fff">${pinMode?'&#128274;':'&#128400;'}</div>
     <div style="font-size:22px;font-weight:800;color:#1e293b">${u.name}</div>
-    <div style="font-size:13px;color:#94a3b8">הזן סיסמה כדי להמשיך</div>
+    <div style="font-size:13px;color:#94a3b8">${pinMode?'הזן סיסמה כדי להמשיך':'ממתין לאימות ביומטרי'}</div>
+    ${pinMode?`
     <input class="inp" id="lockPin" type="password" placeholder="סיסמה" style="text-align:center;font-size:22px;letter-spacing:8px;max-width:220px"/>
     <button id="lockEnter" style="padding:13px;border-radius:12px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;width:100%;max-width:220px;box-shadow:0 4px 14px rgba(99,102,241,.3)">כניסה</button>
-    ${showBio?`<button id="lockBio" style="padding:12px;border-radius:12px;border:2px solid #c7d2fe;color:#6366f1;font-weight:700;font-size:14px;background:#eef2ff;cursor:pointer;width:100%;max-width:220px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:20px">&#128400;</span>כניסה ביומטרית</button>`:''}
-    <div id="lockErr" style="color:#ef4444;font-size:12px;display:none">&#10060; סיסמה שגויה</div>
-    ${USERS.length>1?`<button id="lockSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline">כניסה עם משתמש אחר</button>`:''}
+    <div id="lockErr" style="color:#ef4444;font-size:12px;display:none">&#10060; סיסמה שגויה</div>`:''}
+    ${!pinMode?`<button id="lockBio" style="padding:12px 24px;border-radius:12px;border:2px solid #c7d2fe;color:#6366f1;font-weight:700;font-size:14px;background:#eef2ff;cursor:pointer">נסה שוב</button>`:''}
+    ${useBio&&pinMode?`<button id="lockBioSwitch" style="background:transparent;border:none;color:#6366f1;font-size:13px;cursor:pointer;text-decoration:underline">&#128400; עבור לטביעת אצבע</button>`:''}
+    ${!pinMode?`<button id="lockPinSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;text-decoration:underline">השתמש בסיסמה במקום</button>`:''}
+    ${USERS.length>1?`<button id="lockSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;margin-top:4px;text-decoration:underline">כניסה עם משתמש אחר</button>`:''}
   </div>`;
-  const tryPin=()=>{
-    if(g('lockPin').value===u.pin){setUnlocked(CUR_UID);rAll();}
-    else{g('lockErr').style.display='block';g('lockPin').value='';g('lockPin').focus();}
-  };
-  g('lockEnter').onclick=tryPin;
-  g('lockPin').onkeydown=e=>{if(e.key==='Enter')tryPin();};
   if(USERS.length>1&&g('lockSwitch'))g('lockSwitch').onclick=()=>rUserMod();
-  if(showBio){
+  if(pinMode){
+    const tryPin=()=>{
+      if(g('lockPin').value===u.pin){setUnlocked(CUR_UID);rAll();}
+      else{g('lockErr').style.display='block';g('lockPin').value='';g('lockPin').focus();}
+    };
+    g('lockEnter').onclick=tryPin;
+    g('lockPin').onkeydown=e=>{if(e.key==='Enter')tryPin();};
+    if(g('lockBioSwitch'))g('lockBioSwitch').onclick=()=>rLockScreen(false);
+    requestAnimationFrame(()=>{const el=g('lockPin');if(el)el.focus();});
+  }else{
     const bioOk=()=>{setUnlocked(CUR_UID);rAll();};
     const bioFail=()=>{if(g('lockBio'))g('lockBio').disabled=false;};
     if(g('lockBio'))g('lockBio').onclick=()=>{g('lockBio').disabled=true;authBiometric(CUR_UID,bioOk,bioFail);};
-    authBiometric(CUR_UID,bioOk,null);
+    if(g('lockPinSwitch'))g('lockPinSwitch').onclick=()=>rLockScreen(true);
+    authBiometric(CUR_UID,bioOk,()=>rLockScreen(true));
   }
-  requestAnimationFrame(()=>{const el=g('lockPin');if(el)el.focus();});
 }
 
 function rUserMod(editId=null,pinId=null,switchId=null){
