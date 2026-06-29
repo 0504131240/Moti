@@ -1034,7 +1034,7 @@ function rUserMod(editId=null,pinId=null,switchId=null){
       <div style="flex:1"><div style="font-weight:700;font-size:14px;color:#1e293b">${u.name}</div>${isCur?'<div style="font-size:11px;color:#6366f1;font-weight:600">פעיל כעת</div>':''}</div>
       <button class="editU" data-uid="${u.id}" title="ערוך שם" style="background:transparent;border:none;cursor:pointer;font-size:15px;padding:4px 6px;color:#94a3b8">&#9998;</button>
       <button class="pinU" data-uid="${u.id}" title="${hasPin?'שנה/מחק סיסמה':'הגדר סיסמה'}" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:4px 6px;color:${hasPin?'#6366f1':'#cbd5e1'}">${hasPin?'&#128274;':'&#128275;'}</button>
-      ${hasPin&&canUseBiometric()?`<button class="bioReg" data-uid="${u.id}" title="${hasBiometric(u.id)?'הסר טביעת אצבע':'רשום טביעת אצבע'}" style="background:transparent;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:${hasBiometric(u.id)?'#6366f1':'#cbd5e1'}">&#128400;</button>`:''}
+      ${hasPin&&isCur&&canUseBiometric()?`<button class="bioReg" data-uid="${u.id}" title="${hasBiometric(u.id)?'הסר טביעת אצבע':'רשום טביעת אצבע'}" style="background:transparent;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:${hasBiometric(u.id)?'#6366f1':'#cbd5e1'}">&#128400;</button>`:''}
       ${!isCur?`<button class="swUser" data-uid="${u.id}" style="padding:6px 14px;border-radius:8px;border:none;background:#6366f1;color:#fff;font-size:12px;font-weight:700;cursor:pointer">בחר</button>`:`<span style="font-size:20px;color:#6366f1">&#10003;</span>`}
     </div>`;
   }).join("");
