@@ -902,16 +902,54 @@ function rEditMod(){
 function isUnlocked(uid){try{return!!localStorage.getItem('bdg_unlocked_'+(uid||CUR_UID));}catch{return false;}}
 function setUnlocked(uid){try{localStorage.setItem('bdg_unlocked_'+(uid||CUR_UID),'1');}catch{}}
 
+function canUseBiometric(){return!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);}
+function hasBiometric(uid){try{return!!localStorage.getItem('bdg_cred_'+(uid||CUR_UID));}catch{return false;}}
+async function registerBiometric(uid,onOk,onFail){
+  if(!canUseBiometric()){onFail&&onFail('לא נתמך');return;}
+  try{
+    const ch=crypto.getRandomValues(new Uint8Array(32));
+    const u8=new TextEncoder().encode(uid||CUR_UID);
+    const c=await navigator.credentials.create({publicKey:{
+      challenge:ch,
+      rp:{name:'תקציב משפחתי',id:window.location.hostname||'localhost'},
+      user:{id:u8,name:uid||CUR_UID,displayName:USERS.find(u=>u.id===(uid||CUR_UID))?.name||''},
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},
+      timeout:60000
+    }});
+    if(!c){onFail&&onFail();return;}
+    localStorage.setItem('bdg_cred_'+(uid||CUR_UID),btoa(String.fromCharCode(...new Uint8Array(c.rawId))));
+    onOk&&onOk();
+  }catch(e){console.warn('regBio:',e);onFail&&onFail(e?.message);}
+}
+async function authBiometric(uid,onOk,onFail){
+  if(!canUseBiometric()||!hasBiometric(uid)){onFail&&onFail();return;}
+  try{
+    const idB64=localStorage.getItem('bdg_cred_'+(uid||CUR_UID));
+    const idBytes=Uint8Array.from(atob(idB64),c=>c.charCodeAt(0));
+    await navigator.credentials.get({publicKey:{
+      challenge:crypto.getRandomValues(new Uint8Array(32)),
+      rpId:window.location.hostname||'localhost',
+      allowCredentials:[{id:idBytes,type:'public-key'}],
+      userVerification:'required',
+      timeout:60000
+    }});
+    onOk&&onOk();
+  }catch(e){console.warn('authBio:',e);onFail&&onFail();}
+}
+
 function rLockScreen(){
   const u=USERS.find(u=>u.id===CUR_UID);
   if(!u?.pin||isUnlocked(CUR_UID)){rAll();return;}
   const cnt=g('cnt');
+  const showBio=canUseBiometric()&&hasBiometric(CUR_UID);
   cnt.innerHTML=`<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 24px">
     <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff">&#128274;</div>
     <div style="font-size:22px;font-weight:800;color:#1e293b">${u.name}</div>
     <div style="font-size:13px;color:#94a3b8">הזן סיסמה כדי להמשיך</div>
     <input class="inp" id="lockPin" type="password" placeholder="סיסמה" style="text-align:center;font-size:22px;letter-spacing:8px;max-width:220px"/>
     <button id="lockEnter" style="padding:13px;border-radius:12px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;width:100%;max-width:220px;box-shadow:0 4px 14px rgba(99,102,241,.3)">כניסה</button>
+    ${showBio?`<button id="lockBio" style="padding:12px;border-radius:12px;border:2px solid #c7d2fe;color:#6366f1;font-weight:700;font-size:14px;background:#eef2ff;cursor:pointer;width:100%;max-width:220px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:20px">&#128400;</span>כניסה ביומטרית</button>`:''}
     <div id="lockErr" style="color:#ef4444;font-size:12px;display:none">&#10060; סיסמה שגויה</div>
     ${USERS.length>1?`<button id="lockSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline">כניסה עם משתמש אחר</button>`:''}
   </div>`;
@@ -922,6 +960,12 @@ function rLockScreen(){
   g('lockEnter').onclick=tryPin;
   g('lockPin').onkeydown=e=>{if(e.key==='Enter')tryPin();};
   if(USERS.length>1&&g('lockSwitch'))g('lockSwitch').onclick=()=>rUserMod();
+  if(showBio){
+    const bioOk=()=>{setUnlocked(CUR_UID);rAll();};
+    const bioFail=()=>{if(g('lockBio'))g('lockBio').disabled=false;};
+    if(g('lockBio'))g('lockBio').onclick=()=>{g('lockBio').disabled=true;authBiometric(CUR_UID,bioOk,bioFail);};
+    authBiometric(CUR_UID,bioOk,null);
+  }
   requestAnimationFrame(()=>{const el=g('lockPin');if(el)el.focus();});
 }
 
@@ -940,21 +984,23 @@ function rUserMod(editId=null,pinId=null,switchId=null){
       <div style="font-size:13px;color:#64748b;margin-bottom:12px;text-align:center">&#128274; הזן סיסמה כדי להמשיך</div>
       <input class="inp" id="pinEnter" type="password" placeholder="סיסמה" style="margin-bottom:14px;font-size:18px;text-align:center;letter-spacing:6px"/>
       <button id="verifyPin" style="width:100%;padding:12px;border-radius:12px;border:none;color:#fff;font-weight:700;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">כניסה</button>
+      ${canUseBiometric()&&hasBiometric(switchId)?`<button id="swBioBtn" style="width:100%;padding:11px;border-radius:12px;border:2px solid #c7d2fe;color:#6366f1;font-weight:700;font-size:13px;background:#eef2ff;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:18px">&#128400;</span>כניסה ביומטרית</button>`:''}
       <div id="pinErr" style="color:#ef4444;font-size:12px;text-align:center;margin-top:8px;display:none">&#10060; סיסמה שגויה</div>
       <button id="backBtn" style="width:100%;padding:8px;border-radius:10px;border:none;color:#94a3b8;background:transparent;cursor:pointer;font-size:13px;margin-top:6px">&#8592; חזור לרשימה</button>
     </div></div>`);
+    const doSwitch=()=>{CUR_UID=switchId;saveUsers();ld();ih("m2","");if(db)fbListen(S.year);setUnlocked(CUR_UID);rAll();};
     g("cU").onclick=()=>ih("m2","");
     g("uO").onclick=e=>{if(e.target.id==="uO")ih("m2","");};
     g("backBtn").onclick=()=>rUserMod();
     g("pinEnter").onkeydown=e=>{if(e.key==="Enter")g("verifyPin").click();};
     g("verifyPin").onclick=()=>{
-      if(g("pinEnter").value===u.pin){
-        CUR_UID=switchId;saveUsers();ld();ih("m2","");if(db)fbListen(S.year);setUnlocked(CUR_UID);rAll();
-      }else{
+      if(g("pinEnter").value===u.pin){doSwitch();}
+      else{
         g("pinErr").style.display="block";
         g("pinEnter").value="";g("pinEnter").focus();
       }
     };
+    if(g("swBioBtn"))g("swBioBtn").onclick=()=>{g("swBioBtn").disabled=true;authBiometric(switchId,doSwitch,()=>{if(g("swBioBtn"))g("swBioBtn").disabled=false;});};
     requestAnimationFrame(()=>{const el=g("pinEnter");if(el)el.focus();});
     return;
   }
@@ -988,6 +1034,7 @@ function rUserMod(editId=null,pinId=null,switchId=null){
       <div style="flex:1"><div style="font-weight:700;font-size:14px;color:#1e293b">${u.name}</div>${isCur?'<div style="font-size:11px;color:#6366f1;font-weight:600">פעיל כעת</div>':''}</div>
       <button class="editU" data-uid="${u.id}" title="ערוך שם" style="background:transparent;border:none;cursor:pointer;font-size:15px;padding:4px 6px;color:#94a3b8">&#9998;</button>
       <button class="pinU" data-uid="${u.id}" title="${hasPin?'שנה/מחק סיסמה':'הגדר סיסמה'}" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:4px 6px;color:${hasPin?'#6366f1':'#cbd5e1'}">${hasPin?'&#128274;':'&#128275;'}</button>
+      ${hasPin&&canUseBiometric()?`<button class="bioReg" data-uid="${u.id}" title="${hasBiometric(u.id)?'הסר טביעת אצבע':'רשום טביעת אצבע'}" style="background:transparent;border:none;cursor:pointer;font-size:17px;padding:4px 6px;color:${hasBiometric(u.id)?'#6366f1':'#cbd5e1'}">&#128400;</button>`:''}
       ${!isCur?`<button class="swUser" data-uid="${u.id}" style="padding:6px 14px;border-radius:8px;border:none;background:#6366f1;color:#fff;font-size:12px;font-weight:700;cursor:pointer">בחר</button>`:`<span style="font-size:20px;color:#6366f1">&#10003;</span>`}
     </div>`;
   }).join("");
@@ -1033,6 +1080,16 @@ function rUserMod(editId=null,pinId=null,switchId=null){
     const u=USERS.find(u=>u.id===b.dataset.uid);
     if(u?.pin){rUserMod(null,null,b.dataset.uid);}
     else{CUR_UID=b.dataset.uid;saveUsers();ld();ih("m2","");if(db)fbListen(S.year);setUnlocked(CUR_UID);rAll();}
+  });
+  document.querySelectorAll(".bioReg").forEach(b=>b.onclick=async()=>{
+    const uid=b.dataset.uid;
+    if(hasBiometric(uid)){
+      localStorage.removeItem('bdg_cred_'+uid);
+      rUserMod(editId,pinId);
+    }else{
+      b.disabled=true;
+      await registerBiometric(uid,()=>rUserMod(editId,pinId),msg=>{b.disabled=false;alert('לא ניתן לרשום: '+(msg||'שגיאה'));});
+    }
   });
   if(editId)requestAnimationFrame(()=>{const el=g("editUN");if(el)el.focus();});
   if(pinId)requestAnimationFrame(()=>{const el=g("pinInput");if(el)el.focus();});
