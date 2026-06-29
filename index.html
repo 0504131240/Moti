@@ -140,6 +140,27 @@ function setSyncDot(ok){const el=g('syncDot');if(el)el.style.background=ok?'#10b
 
 function getCfg(){try{return JSON.parse(localStorage.getItem('bdg_cfg_'+CUR_UID)||'{}');}catch{return{};}}
 function saveCfg(c){try{localStorage.setItem('bdg_cfg_'+CUR_UID,JSON.stringify({...getCfg(),...c}));}catch{}}
+function cycleMonthForDate(dateStr,start){
+  if(!dateStr||start<=1)return null;
+  try{const p=dateStr.split('-'),day=parseInt(p[2]),month=parseInt(p[1])-1;
+  if(day>=start)return month;
+  if(month===0)return null;// Jan→Dec crosses year, keep in place
+  return month-1;}catch{return null;}
+}
+function migrateToStartDay(mData,cats,start){
+  if(start<=1)return mData;
+  const nd={};
+  for(let m=0;m<12;m++){nd[m]={income:[]};cats.forEach(c=>{nd[m][c.id]={entries:[]};});}
+  for(let m=0;m<12;m++){
+    if(!mData[m])continue;
+    (mData[m].income||[]).forEach(e=>{const t=cycleMonthForDate(e.date,start);(t!==null?nd[t]:nd[m]).income.push(e);});
+    cats.forEach(c=>{(mData[m]?.[c.id]?.entries||[]).forEach(e=>{
+      const t=e.recurring?null:cycleMonthForDate(e.date,start);
+      nd[t!==null?t:m][c.id].entries.push(e);
+    });});
+  }
+  return nd;
+}
 function todayPeriod(){
   const d=new Date(),day=d.getDate(),start=parseInt(getCfg().monthStart)||1;
   if(start<=1)return{month:d.getMonth(),year:d.getFullYear()};
@@ -1102,6 +1123,8 @@ function rUserMod(editId=null,pinId=null,switchId=null){
   g("saveMonthStart").onclick=()=>{
     const d=Math.max(1,Math.min(28,parseInt(g("monthStartInp").value)||1));
     saveCfg({monthStart:d});
+    S.mData=migrateToStartDay(S.mData,S.cats,d);
+    sv();
     const p=todayPeriod();S.month=p.month;S.year=p.year;
     ld();fbListen(S.year);ih("m2","");rAll();
   };
