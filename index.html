@@ -996,6 +996,13 @@ function rUserMod(editId=null,pinId=null,switchId=null){
       <button id="backBtn" style="width:100%;padding:8px;border-radius:10px;border:none;color:#94a3b8;background:transparent;cursor:pointer;font-size:13px;margin-top:6px">&#8592; חזור לרשימה</button>
     </div></div>`);
     const doSwitch=()=>{CUR_UID=switchId;saveUsers();ld();ih("m2","");if(db)fbListen(S.year);setUnlocked(CUR_UID);rAll();};
+    const hasBio=canUseBiometric()&&hasBiometric(switchId);
+    const showPinFields=()=>{
+      if(g("pinEnter"))g("pinEnter").style.display='';
+      if(g("verifyPin"))g("verifyPin").style.display='';
+      requestAnimationFrame(()=>{const el=g("pinEnter");if(el)el.focus();});
+    };
+    if(hasBio){g("pinEnter").style.display='none';g("verifyPin").style.display='none';}
     g("cU").onclick=()=>ih("m2","");
     g("uO").onclick=e=>{if(e.target.id==="uO")ih("m2","");};
     g("backBtn").onclick=()=>rUserMod();
@@ -1007,8 +1014,14 @@ function rUserMod(editId=null,pinId=null,switchId=null){
         g("pinEnter").value="";g("pinEnter").focus();
       }
     };
-    if(g("swBioBtn"))g("swBioBtn").onclick=()=>{g("swBioBtn").disabled=true;authBiometric(switchId,doSwitch,()=>{if(g("swBioBtn"))g("swBioBtn").disabled=false;});};
-    requestAnimationFrame(()=>{const el=g("pinEnter");if(el)el.focus();});
+    if(g("swBioBtn")){
+      g("swBioBtn").onclick=()=>{g("swBioBtn").disabled=true;authBiometric(switchId,doSwitch,()=>{g("swBioBtn").disabled=false;showPinFields();});};
+    }
+    if(hasBio){
+      authBiometric(switchId,doSwitch,()=>{if(g("swBioBtn"))g("swBioBtn").disabled=false;showPinFields();});
+    }else{
+      requestAnimationFrame(()=>{const el=g("pinEnter");if(el)el.focus();});
+    }
     return;
   }
 
