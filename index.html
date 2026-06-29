@@ -138,7 +138,22 @@ function fbListen(year){
 }
 function setSyncDot(ok){const el=g('syncDot');if(el)el.style.background=ok?'#10b981':'#ef4444';}
 
+function getCfg(){try{return JSON.parse(localStorage.getItem('bdg_cfg_'+CUR_UID)||'{}');}catch{return{};}}
+function saveCfg(c){try{localStorage.setItem('bdg_cfg_'+CUR_UID,JSON.stringify({...getCfg(),...c}));}catch{}}
+function todayPeriod(){
+  const d=new Date(),day=d.getDate(),start=parseInt(getCfg().monthStart)||1;
+  if(start<=1)return{month:d.getMonth(),year:d.getFullYear()};
+  if(day>=start)return{month:d.getMonth(),year:d.getFullYear()};
+  const m=d.getMonth()-1;
+  return m<0?{month:11,year:d.getFullYear()-1}:{month:m,year:d.getFullYear()};
+}
 const MO=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+function moLabel(m){
+  const start=parseInt(getCfg().monthStart)||1;
+  if(start<=1)return MO[m];
+  const prevM=(m-1+12)%12;
+  return start+' '+MO[prevM]+' — '+(start-1)+' '+MO[m];
+}
 const CL=["#6366f1","#0ea5e9","#f59e0b","#10b981","#8b5cf6","#ef4444","#f97316","#14b8a6","#ec4899","#84cc16"];
 const DF=[
   {id:1,name:"מזון וקניות",budget:3000,color:"#6366f1"},
@@ -395,14 +410,14 @@ function rTlb(){
 function rCnt(){S.view==="monthly"?rMon():rYr();}
 
 function rMon(){
-  const nowM=new Date().getMonth(),nowY=new Date().getFullYear();
+  const {month:nowM,year:nowY}=todayPeriod();
   const isNow=S.month===nowM&&S.year===nowY;
   const filt=S.expFilter||'all';
 
   const monNav=`<div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;background:#fff;border-radius:14px;padding:12px 16px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <button id="prevMon" style="background:#f1f5f9;border:none;border-radius:10px;width:40px;height:40px;font-size:22px;color:#64748b;cursor:pointer">&#8249;</button>
     <div style="text-align:center;flex:1">
-      <div style="font-size:22px;font-weight:800;color:#1e293b">${MO[S.month]}</div>
+      <div style="font-size:${(parseInt(getCfg().monthStart)||1)>1?'15':'22'}px;font-weight:800;color:#1e293b">${moLabel(S.month)}</div>
       <div style="font-size:11px;color:#94a3b8">${S.year}</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -483,7 +498,7 @@ function rMon(){
     ${incomeSec}
     ${rCharts()}
     <div style="background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;border:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-      <span style="color:#64748b;font-size:13px">סה&quot;כ ${filtLabel} ${MO[S.month]}</span>
+      <span style="color:#64748b;font-size:13px">סה&quot;כ ${filtLabel} ${moLabel(S.month)}</span>
       <span style="font-size:20px;font-weight:800;color:#6366f1">&#8362;${fm(filtTotal)}</span>
     </div>
     <button id="addExpBtn" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;padding:15px 36px;border-radius:50px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;box-shadow:0 6px 24px rgba(99,102,241,.55);white-space:nowrap;letter-spacing:.3px">&#10010; הוצאה חדשה</button>
@@ -524,7 +539,7 @@ function rExpMod(){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
         <div>
           <div style="font-size:17px;font-weight:800;color:#1e293b">הוצאה חדשה</div>
-          <div style="font-size:11px;color:#94a3b8">${MO[S.month]} ${S.year}</div>
+          <div style="font-size:11px;color:#94a3b8">${moLabel(S.month)} ${S.year}</div>
         </div>
         <button id="cExp" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
       </div>
@@ -636,7 +651,7 @@ function rIncMod(){
       </div>`).join("");
   ih("m1",`<div class="overlay" id="incO"><div class="modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <span style="font-size:16px;font-weight:800;color:#059669">&#128176; הכנסות — ${MO[S.month]}</span>
+      <span style="font-size:16px;font-weight:800;color:#059669">&#128176; הכנסות — ${moLabel(S.month)}</span>
       <button id="cInc" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
     </div>
     <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap">
@@ -741,7 +756,7 @@ function rEntMod(){
 
   ih("m1",`<div class="overlay" id="eO"><div class="modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:8px"><div style="width:9px;height:9px;border-radius:50%;background:${cat.color}"></div><span style="font-size:16px;font-weight:800;color:#1e293b">${cat.name}</span><span style="font-size:12px;color:#94a3b8">${MO[S.month]}</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:9px;height:9px;border-radius:50%;background:${cat.color}"></div><span style="font-size:16px;font-weight:800;color:#1e293b">${cat.name}</span><span style="font-size:12px;color:#94a3b8">${moLabel(S.month)}</span></div>
       <button id="cE" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
@@ -1072,10 +1087,25 @@ function rUserMod(editId=null,pinId=null,switchId=null){
         <button id="addU" style="padding:9px 14px;border-radius:10px;border:none;color:#fff;background:linear-gradient(135deg,#10b981,#059669);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">+ הוסף</button>
       </div>
     </div>
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:8px">
+      <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:8px;letter-spacing:.5px">&#9881; הגדרות תצוגה</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;color:#475569;flex:1">תחילת חודש ביום</span>
+        <input class="inp" id="monthStartInp" type="number" min="1" max="28" value="${getCfg().monthStart||1}" style="width:64px;text-align:center;padding:7px 8px;font-size:15px;font-weight:700"/>
+        <button id="saveMonthStart" style="padding:8px 14px;border-radius:9px;border:none;background:#6366f1;color:#fff;font-size:13px;font-weight:700;cursor:pointer">שמור</button>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:5px">לדוגמה: יום 15 — חודש מוצג כ"15 מאי — 14 יוני"</div>
+    </div>
   </div></div>`);
 
   g("cU").onclick=()=>ih("m2","");
   g("uO").onclick=e=>{if(e.target.id==="uO")ih("m2","");};
+  g("saveMonthStart").onclick=()=>{
+    const d=Math.max(1,Math.min(28,parseInt(g("monthStartInp").value)||1));
+    saveCfg({monthStart:d});
+    const p=todayPeriod();S.month=p.month;S.year=p.year;
+    ld();fbListen(S.year);ih("m2","");rAll();
+  };
   g("addU").onclick=()=>{
     const name=(g("newUN").value||"").trim();
     if(!name)return;
@@ -1295,7 +1325,7 @@ window.rEntMod=rEntMod;
 window.rUserMod=rUserMod;
 
 // Render immediately from localStorage — no Firebase dependency
-loadUsers();ld();rLockScreen();
+loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();rLockScreen();
 
 // Load Firebase asynchronously in background — app works even if this fails
 (async()=>{
