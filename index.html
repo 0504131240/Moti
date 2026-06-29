@@ -151,8 +151,7 @@ const MO=["ינואר","פברואר","מרץ","אפריל","מאי","יוני",
 function moLabel(m){
   const start=parseInt(getCfg().monthStart)||1;
   if(start<=1)return MO[m];
-  const prevM=(m-1+12)%12;
-  return start+' '+MO[prevM]+' — '+(start-1)+' '+MO[m];
+  return MO[(m+1)%12];
 }
 const CL=["#6366f1","#0ea5e9","#f59e0b","#10b981","#8b5cf6","#ef4444","#f97316","#14b8a6","#ec4899","#84cc16"];
 const DF=[
@@ -417,7 +416,7 @@ function rMon(){
   const monNav=`<div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;background:#fff;border-radius:14px;padding:12px 16px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <button id="prevMon" style="background:#f1f5f9;border:none;border-radius:10px;width:40px;height:40px;font-size:22px;color:#64748b;cursor:pointer">&#8249;</button>
     <div style="text-align:center;flex:1">
-      <div style="font-size:${(parseInt(getCfg().monthStart)||1)>1?'15':'22'}px;font-weight:800;color:#1e293b">${moLabel(S.month)}</div>
+      <div style="font-size:22px;font-weight:800;color:#1e293b">${moLabel(S.month)}</div>
       <div style="font-size:11px;color:#94a3b8">${S.year}</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
