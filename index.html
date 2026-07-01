@@ -141,23 +141,33 @@ function setSyncDot(ok){const el=g('syncDot');if(el)el.style.background=ok?'#10b
 function getCfg(){try{return JSON.parse(localStorage.getItem('bdg_cfg_'+CUR_UID)||'{}');}catch{return{};}}
 function saveCfg(c){try{localStorage.setItem('bdg_cfg_'+CUR_UID,JSON.stringify({...getCfg(),...c}));}catch{}}
 function cycleMonthForDate(dateStr,start){
-  if(!dateStr||start<=1)return null;
+  if(!dateStr||start<15)return null;
   try{const p=dateStr.split('-'),day=parseInt(p[2]),month=parseInt(p[1])-1;
   if(day>=start)return month;
   if(month===0)return null;// Jan→Dec crosses year, keep in place
   return month-1;}catch{return null;}
 }
+function calMonth(dateStr){try{const v=parseInt(dateStr.split('-')[1])-1;return(v>=0&&v<12)?v:null;}catch{return null;}}
 function migrateToStartDay(mData,cats,start){
-  if(start<=1)return mData;
   const nd={};
   for(let m=0;m<12;m++){nd[m]={income:[]};cats.forEach(c=>{nd[m][c.id]={entries:[]};});}
   for(let m=0;m<12;m++){
     if(!mData[m])continue;
-    (mData[m].income||[]).forEach(e=>{const t=cycleMonthForDate(e.date,start);(t!==null?nd[t]:nd[m]).income.push(e);});
-    cats.forEach(c=>{(mData[m]?.[c.id]?.entries||[]).forEach(e=>{
-      const t=e.recurring?null:cycleMonthForDate(e.date,start);
-      nd[t!==null?t:m][c.id].entries.push(e);
-    });});
+    if(start<15){
+      // Restore to calendar month (undo any previous cycle migration)
+      (mData[m].income||[]).forEach(e=>{const t=e.date?calMonth(e.date):null;nd[t!==null?t:m].income.push(e);});
+      cats.forEach(c=>{(mData[m]?.[c.id]?.entries||[]).forEach(e=>{
+        const t=(!e.recurring&&e.date)?calMonth(e.date):null;
+        nd[t!==null?t:m][c.id].entries.push(e);
+      });});
+    }else{
+      // Distribute to cycle bucket (start >= 15)
+      (mData[m].income||[]).forEach(e=>{const t=cycleMonthForDate(e.date,start);(t!==null?nd[t]:nd[m]).income.push(e);});
+      cats.forEach(c=>{(mData[m]?.[c.id]?.entries||[]).forEach(e=>{
+        const t=e.recurring?null:cycleMonthForDate(e.date,start);
+        nd[t!==null?t:m][c.id].entries.push(e);
+      });});
+    }
   }
   return nd;
 }
