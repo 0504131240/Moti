@@ -171,8 +171,8 @@ function todayPeriod(){
 const MO=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 function moLabel(m){
   const start=parseInt(getCfg().monthStart)||1;
-  if(start<=1)return MO[m];
-  return MO[(m+1)%12];
+  if(start>=15)return MO[(m+1)%12];
+  return MO[m];
 }
 const CL=["#6366f1","#0ea5e9","#f59e0b","#10b981","#8b5cf6","#ef4444","#f97316","#14b8a6","#ec4899","#84cc16"];
 const DF=[
