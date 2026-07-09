@@ -1354,7 +1354,10 @@ window.rEntMod=rEntMod;
 window.rUserMod=rUserMod;
 
 // Render immediately from localStorage — no Firebase dependency
-loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();rLockScreen();
+loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();
+// Re-distribute entries to correct cycle buckets on every startup
+{const start=parseInt(getCfg().monthStart)||1;if(start>1){const nd=migrateToStartDay(S.mData,S.cats,start);if(JSON.stringify(nd)!==JSON.stringify(S.mData)){S.mData=nd;sv();}}}
+rLockScreen();
 
 // Load Firebase asynchronously in background — app works even if this fails
 (async()=>{
