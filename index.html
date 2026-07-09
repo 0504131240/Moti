@@ -128,8 +128,10 @@ function fbListen(year){
     const d=snap.data();
     S.cats=d.cats||DF.map(c=>({...c}));
     S.mData=d.mData||iMD(S.cats);
-    applyBudgets(S.cats);
     eC(S.cats,S.mData);
+    const _start=parseInt(getCfg().monthStart)||1;
+    if(_start>1){const _nd=migrateToStartDay(S.mData,S.cats,_start);if(JSON.stringify(_nd)!==JSON.stringify(S.mData)){S.mData=_nd;fbSave();}}
+    applyBudgets(S.cats);
     try{localStorage.setItem(sk(year),JSON.stringify({cats:S.cats,mData:S.mData}));}catch{}
     const open=['m1','m2','m3'].some(id=>{const el=g(id);return el&&el.innerHTML.trim();});
     if(!open)rAll();
