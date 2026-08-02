@@ -880,7 +880,7 @@ function rAddMod(){
       <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1e293b">חודשים ספציפיים בלבד</div><div style="font-size:11px;color:#94a3b8">הקטגוריה תופיע רק בחודשים שתבחר</div></div>
     </label>
     <div id="nMonPicker" style="display:${S.nc.activeMonths?'flex':'none'};flex-wrap:wrap;gap:6px;margin-bottom:14px">
-      ${MO.map((m,i)=>`<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid ${(S.nc.activeMonths||[]).includes(i)?'#6366f1':'#e2e8f0'};background:${(S.nc.activeMonths||[]).includes(i)?'#eef2ff':'#f8faff'};cursor:pointer;font-size:12px;font-weight:600;color:${(S.nc.activeMonths||[]).includes(i)?'#6366f1':'#64748b'}"><input type="checkbox" class="nMCb" value="${i}" style="display:none" ${(S.nc.activeMonths||[]).includes(i)?'checked':''}>${m}</label>`).join('')}
+      ${MO.map((m,i)=>`<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid ${(S.nc.activeMonths||[]).includes(i)?'#6366f1':'#e2e8f0'};background:${(S.nc.activeMonths||[]).includes(i)?'#eef2ff':'#f8faff'};cursor:pointer;font-size:12px;font-weight:600;color:${(S.nc.activeMonths||[]).includes(i)?'#6366f1':'#64748b'}"><input type="checkbox" class="nMCb" value="${i}" style="display:none" ${(S.nc.activeMonths||[]).includes(i)?'checked':''}>${moLabel(i)}</label>`).join('')}
     </div>
     <div style="display:flex;gap:8px">
       <button id="dA" style="flex:1;padding:11px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">הוסף</button>
@@ -930,7 +930,7 @@ function rEditMod(){
         <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1e293b">חודשים ספציפיים בלבד</div><div style="font-size:11px;color:#94a3b8">הקטגוריה תופיע רק בחודשים שתבחר</div></div>
       </label>
       <div id="eMonPicker" style="display:${ec.activeMonths?'flex':'none'};flex-wrap:wrap;gap:6px;margin-bottom:12px">
-        ${MO.map((mo,i)=>`<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid ${(ec.activeMonths||[]).includes(i)?'#6366f1':'#e2e8f0'};background:${(ec.activeMonths||[]).includes(i)?'#eef2ff':'#f8faff'};cursor:pointer;font-size:12px;font-weight:600;color:${(ec.activeMonths||[]).includes(i)?'#6366f1':'#64748b'}"><input type="checkbox" class="eMCb" value="${i}" style="display:none" ${(ec.activeMonths||[]).includes(i)?'checked':''}>${mo}</label>`).join('')}
+        ${MO.map((mo,i)=>`<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid ${(ec.activeMonths||[]).includes(i)?'#6366f1':'#e2e8f0'};background:${(ec.activeMonths||[]).includes(i)?'#eef2ff':'#f8faff'};cursor:pointer;font-size:12px;font-weight:600;color:${(ec.activeMonths||[]).includes(i)?'#6366f1':'#64748b'}"><input type="checkbox" class="eMCb" value="${i}" style="display:none" ${(ec.activeMonths||[]).includes(i)?'checked':''}>${moLabel(i)}</label>`).join('')}
       </div>
       <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:5px;letter-spacing:.5px">תתי-קטגוריות</label>
       <div id="subEL" style="margin-bottom:6px">${subItems||'<div style="font-size:12px;color:#cbd5e1;padding:3px 0">אין תתי-קטגוריות</div>'}</div>
