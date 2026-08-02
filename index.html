@@ -441,11 +441,11 @@ function rMon(){
   const isNow=S.month===nowM&&S.year===nowY;
   const filt=S.expFilter||'all';
 
-  const monNav=`<div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;background:#fff;border-radius:14px;padding:12px 16px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.05)">
-    <button id="prevMon" style="background:#f1f5f9;border:none;border-radius:10px;width:40px;height:40px;font-size:22px;color:#64748b;cursor:pointer">&#8249;</button>
-    <div style="text-align:center;flex:1">
-      <div style="font-size:22px;font-weight:800;color:#1e293b">${moLabel(S.month)}</div>
-      <div style="font-size:11px;color:#94a3b8">${cycleRangeLabel(S.month)||S.year}</div>
+  const monNav=`<div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0;background:#fff;border-radius:14px;padding:8px 14px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+    <button id="prevMon" style="background:#f1f5f9;border:none;border-radius:10px;width:36px;height:36px;font-size:20px;color:#64748b;cursor:pointer">&#8249;</button>
+    <div style="text-align:center;flex:1;line-height:1.2">
+      <span style="font-size:20px;font-weight:800;color:#1e293b">${moLabel(S.month)}</span>
+      ${cycleRangeLabel(S.month)?`<span style="font-size:10px;color:#94a3b8;margin-right:6px">${cycleRangeLabel(S.month)}</span>`:`<div style="font-size:11px;color:#94a3b8">${S.year}</div>`}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       ${!isNow?'<button id="todayBtn" style="padding:6px 12px;border-radius:8px;border:none;background:#eef2ff;color:#6366f1;font-size:12px;font-weight:700;cursor:pointer">&#8617; היום</button>':''}
