@@ -55,7 +55,30 @@ let db=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null,_getDoc=null;
 let USERS=[],CUR_UID='u1';
 let EVENTS=[];
 function loadEvents(){try{EVENTS=JSON.parse(localStorage.getItem('bdg_evt_'+CUR_UID)||'[]');}catch{EVENTS=[];}}
-function saveEvents(){try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}}
+function saveEvents(){
+  try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}
+  fbSaveEvents();
+}
+function fbSaveEvents(){
+  if(!db||!_setDoc||!_doc)return;
+  _setDoc(_doc(db,'budget','_evt_'+CUR_UID),{events:EVENTS}).catch(e=>console.warn('FB evt save:',e));
+}
+function fbLoadEvents(){
+  if(!db||!_getDoc||!_doc)return;
+  _getDoc(_doc(db,'budget','_evt_'+CUR_UID)).then(snap=>{
+    if(!snap.exists())return;
+    const fbEvts=snap.data().events||[];
+    // Merge: add any event from Firebase that isn't in local storage
+    let changed=false;
+    fbEvts.forEach(fe=>{
+      if(!EVENTS.find(e=>e.id===fe.id)){EVENTS.push(fe);changed=true;}
+    });
+    if(changed){
+      try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}
+      if(g('evO')||g('evdO'))rEvents();
+    }
+  }).catch(e=>console.warn('FB evt load:',e));
+}
 function loadUsers(){
   try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS=[{id:'u1',name:'משתמש 1'}];saveUsers();}}catch{USERS=[{id:'u1',name:'משתמש 1'}];}
   try{CUR_UID=localStorage.getItem('bdg_cur_user')||'u1';}catch{CUR_UID='u1';}
@@ -1602,6 +1625,7 @@ rLockScreen();
     _doc=m.doc;_setDoc=m.setDoc;_onSnapshot=m.onSnapshot;_getDoc=m.getDoc;
     fbLoadUsers();
     fbLoadBudgets();
+    fbLoadEvents();
     fbListen(S.year);
   }catch(e){
     console.warn('Firebase unavailable:',e);
