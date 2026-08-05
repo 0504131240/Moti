@@ -429,6 +429,7 @@ function rTlb(){
     <button id="oA" style="padding:7px 14px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">+ קטגוריה</button>
     <button id="oBudSug" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#f59e0b,#d97706);cursor:pointer">&#128161; הצעות</button>
     <button id="oEvt" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#10b981,#059669);cursor:pointer">&#127881; אירועים</button>
+    <button id="oSrch" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#64748b,#475569);cursor:pointer">&#128269; חיפוש</button>
     <button id="oE" style="padding:7px 14px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#0ea5e9,#0284c7);cursor:pointer">&#11015; CSV</button>
   </div>`);
   g("vm").onclick=()=>{S.view="monthly";rTlb();rCnt();};
@@ -436,6 +437,7 @@ function rTlb(){
   g("oA").onclick=()=>rAddMod();
   g("oBudSug").onclick=()=>rBudgetSuggest();
   g("oEvt").onclick=()=>rEvents();
+  g("oSrch").onclick=()=>rSearch();
   g("oE").onclick=doCSV;
 }
 
@@ -493,7 +495,7 @@ function rMon(){
     const pct=bud>0?Math.min((tot/bud)*100,100):0;
     const recCount=allEnt.filter(e=>e.recurring).length;
     const tr=trendHTML(cat.id);
-    return`<div style="background:#fff;border-radius:14px;padding:14px 16px;border:1px solid ${ov?'#fca5a5':'#e2e8f0'};box-shadow:0 1px 4px rgba(0,0,0,.05)">
+    return`<div data-catid="${cat.id}" style="background:#fff;border-radius:14px;padding:14px 16px;border:1px solid ${ov?'#fca5a5':'#e2e8f0'};box-shadow:0 1px 4px rgba(0,0,0,.05)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="oE" data-c="${cat.id}" style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
           <div style="width:8px;height:8px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
@@ -1468,6 +1470,81 @@ function rEventDetail(eid){
   });
 }
 
+function rSearch(){
+  // Collect all entries across all months and categories for the current year
+  function allEntries(){
+    const res=[];
+    for(let m=0;m<12;m++){
+      (S.mData[m]?.income||[]).forEach(e=>{
+        res.push({...e,catName:'הכנסה',catColor:'#10b981',month:m,isIncome:true});
+      });
+      S.cats.forEach(c=>{
+        (S.mData[m]?.[c.id]?.entries||[]).forEach(e=>{
+          res.push({...e,catName:c.name,catColor:c.color,catId:c.id,month:m});
+        });
+      });
+    }
+    // Sort by date descending
+    return res.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }
+
+  ih("m2",`<div class="overlay" id="srchO"><div class="modal" style="padding:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="font-size:20px">&#128269;</span>
+      <input class="inp" id="srchQ" placeholder="חיפוש לפי תיאור, סכום, קטגוריה..." style="flex:1;font-size:15px"/>
+      <button id="cSrch" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b;flex-shrink:0">&times;</button>
+    </div>
+    <div id="srchRes" style="max-height:65vh;overflow-y:auto"></div>
+  </div></div>`);
+  g("cSrch").onclick=()=>ih("m2","");
+  g("srchO").onclick=e=>{if(e.target.id==="srchO")ih("m2","");};
+
+  const entries=allEntries();
+
+  function renderResults(q){
+    const el=g("srchRes");if(!el)return;
+    const qL=q.trim().toLowerCase();
+    if(!qL){el.innerHTML='<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px">התחל להקליד כדי לחפש</div>';return;}
+    const hits=entries.filter(e=>{
+      const desc=(e.desc||'').toLowerCase();
+      const amt=String(e.amount||'');
+      const cat=(e.catName||'').toLowerCase();
+      return desc.includes(qL)||amt.includes(qL)||cat.includes(qL);
+    });
+    if(!hits.length){el.innerHTML='<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px">לא נמצאו תוצאות</div>';return;}
+    el.innerHTML=hits.slice(0,60).map(e=>`
+      <div class="srchRow" data-m="${e.month}" data-cid="${e.catId||''}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid #f1f5f9;margin-bottom:6px;cursor:pointer">
+        <div style="width:8px;height:8px;border-radius:50%;background:${e.catColor};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.desc||'(ללא תיאור)'}</div>
+          <div style="font-size:11px;color:#94a3b8">${e.catName} &middot; ${moLabel(e.month)} ${S.year}${e.date?' &middot; '+fmDate(e.date):''}</div>
+        </div>
+        <span style="font-size:14px;font-weight:800;color:${e.isIncome?'#10b981':'#6366f1'};flex-shrink:0">${e.isIncome?'+':''}&#8362;${fm(e.amount)}</span>
+      </div>`).join('');
+    el.querySelectorAll(".srchRow").forEach((row,i)=>{
+      const hit=hits[i];
+      row.onclick=()=>{
+        ih("m2","");
+        S.month=hit.month;S.year=new Date().getFullYear();
+        S.view="monthly";
+        rAll();
+        if(hit.catId){
+          // Scroll to category card after render
+          requestAnimationFrame(()=>{
+            const card=document.querySelector(`[data-catid="${hit.catId}"]`);
+            if(card)card.scrollIntoView({behavior:'smooth',block:'center'});
+          });
+        }
+      };
+    });
+  }
+
+  const inp=g("srchQ");
+  inp.oninput=()=>renderResults(inp.value);
+  renderResults('');
+  requestAnimationFrame(()=>{if(inp)inp.focus();});
+}
+
 function rAll(){rHdr();rTlb();rCnt();}
 
 const cntEl=document.getElementById("cnt");
@@ -1506,6 +1583,7 @@ window.rEntMod=rEntMod;
 window.rUserMod=rUserMod;
 window.rEvents=rEvents;
 window.rEventDetail=rEventDetail;
+window.rSearch=rSearch;
 
 // Render immediately from localStorage — no Firebase dependency
 loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();loadEvents();
