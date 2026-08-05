@@ -483,7 +483,7 @@ function rMon(){
     </div>
   </div>`;
 
-  const inc=incT(S.month),expTotal=mt(S.month),balance=inc-expTotal;
+  const inc=incT(S.month),expTotal=mt(S.month),evtTot=evtMonthTotal(S.month),balance=inc-expTotal-evtTot;
   const incomeSec=`<div style="background:#f0fdf4;border-radius:14px;padding:14px 16px;margin-bottom:14px;border:1px solid #a7f3d0">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;color:#059669;font-weight:700">&#128176; הכנסות חודשיות</div>
@@ -543,12 +543,35 @@ function rMon(){
     </div>`;
   }).join("");
 
+  // Event cards for this month (paid expenses only)
+  const evtCards=EVENTS.map(ev=>{
+    const monthExps=(ev.expenses||[]).filter(e=>e.paid&&expCycleMonth(e.date)===S.month);
+    if(!monthExps.length)return'';
+    const tot=monthExps.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+    return`<div style="background:#f0fdf4;border-radius:14px;padding:14px 16px;border:1px solid #bbf7d0;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:14px">&#127881;</span>
+          <span style="font-weight:700;font-size:14px;color:#1e293b">${ev.name}</span>
+          <span style="font-size:11px;background:#dcfce7;color:#15803d;border-radius:8px;padding:1px 6px">אירוע</span>
+        </div>
+        <span style="font-size:16px;font-weight:800;color:#059669">&#8362;${fm(tot)}</span>
+      </div>
+      <div style="height:4px;background:#bbf7d0;border-radius:3px;margin-bottom:8px"></div>
+      ${monthExps.map(e=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid #dcfce7">
+        <span style="font-size:12px;color:#1e293b;flex:1">${e.desc}</span>
+        ${e.date?`<span style="font-size:11px;color:#94a3b8">${fmDate(e.date)}</span>`:''}
+        <span style="font-size:13px;font-weight:700;color:#059669">&#8362;${fm(e.amount)}</span>
+      </div>`).join('')}
+    </div>`;
+  }).filter(h=>h).join('');
+
   // Summary total based on filter
-  const filtTotal=filt==='all'?expTotal:visCats.reduce((s,c)=>{
+  const filtTotal=(filt==='all'?expTotal:visCats.reduce((s,c)=>{
     const e=S.mData[S.month]?.[c.id]?.entries||[];
     const fe=filt==='recurring'?e.filter(x=>x.recurring):e.filter(x=>!x.recurring);
     return s+fe.reduce((ss,x)=>ss+(parseFloat(x.amount)||0),0);
-  },0);
+  },0))+(filt!=='recurring'?evtTot:0);
   const filtLabel=filt==='all'?'הוצאות':filt==='recurring'?'קבועות':'משתנות';
 
   ih("cnt",`
@@ -561,7 +584,7 @@ function rMon(){
     </div>
     <button id="addExpBtn" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;padding:15px 36px;border-radius:50px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;box-shadow:0 6px 24px rgba(99,102,241,.55);white-space:nowrap;letter-spacing:.3px">&#10010; הוצאה חדשה</button>
     ${filtBtns}
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}${evtCards}</div>
   `);
 
   g("prevMon").onclick=()=>{if(S.month===0){S.month=11;S.year--;ld();fbListen(S.year);}else{S.month--;}rAll();};
@@ -1447,15 +1470,15 @@ function rEventDetail(eid){
     </div>
     <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">הוצאות (${(ev.expenses||[]).length})</div>
     <div style="max-height:30vh;overflow-y:auto;margin-bottom:12px">
-      ${exps.length?exps.map(e=>{const linkedCat=e.catId?S.cats.find(c=>c.id===e.catId):null;return`<div style="display:flex;align-items:center;padding:8px 10px;border-radius:10px;background:${e.paid?'#fff':'#fffbeb'};border:1px solid ${e.paid?'#f1f5f9':'#fde68a'};margin-bottom:5px;gap:8px">
+      ${exps.length?exps.map(e=>`<div style="display:flex;align-items:center;padding:8px 10px;border-radius:10px;background:${e.paid?'#fff':'#fffbeb'};border:1px solid ${e.paid?'#f1f5f9':'#fde68a'};margin-bottom:5px;gap:8px">
         <button class="togPay" data-expid="${e.id}" style="width:26px;height:26px;border-radius:50%;border:2px solid ${e.paid?'#10b981':'#fbbf24'};background:${e.paid?'#10b981':'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;padding:0">${e.paid?'&#10003;':''}</button>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:700;color:${e.paid?'#1e293b':'#92400e'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.desc}</div>
-          <div style="font-size:11px;color:#94a3b8">${e.date?fmDate(e.date):''}${linkedCat?` &middot; <span style="color:${linkedCat.color}">${linkedCat.name}</span>`:''}${!e.paid?' &middot; ממתין':''}</div>
+          <div style="font-size:11px;color:#94a3b8">${e.date?fmDate(e.date):''}${!e.paid?' &middot; ממתין לתשלום':''}</div>
         </div>
         <span style="font-size:14px;font-weight:800;color:${e.paid?'#6366f1':'#f59e0b'}">&#8362;${fm(e.amount)}</span>
         <button class="delEvExp" data-expid="${e.id}" style="background:transparent;border:none;cursor:pointer;font-size:18px;color:#cbd5e1;padding:2px;line-height:1">&times;</button>
-      </div>`;}).join(''):'<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:13px">אין הוצאות עדיין</div>'}
+      </div>`).join(''):'<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:13px">אין הוצאות עדיין</div>'}
     </div>
     <div style="background:#f8faff;border-radius:12px;border:1px dashed #c7d2fe;padding:12px">
       <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:8px">+ הוצאה חדשה</div>
@@ -1464,10 +1487,6 @@ function rEventDetail(eid){
         <input class="inp" id="expAmt" type="number" placeholder="סכום (&#8362;)" style="flex:1"/>
         <input class="inp" id="expDate" type="date" value="${today()}" style="flex:1"/>
       </div>
-      <select class="inp" id="expCat" style="margin-bottom:8px">
-        <option value="">ללא קישור לתקציב חודשי</option>
-        ${S.cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
-      </select>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer">
         <input type="checkbox" id="expPaid" style="width:18px;height:18px;accent-color:#10b981;flex-shrink:0"/>
         <span style="font-size:13px;color:#1e293b;font-weight:600">שולמה כבר</span>
@@ -1479,63 +1498,32 @@ function rEventDetail(eid){
   g("evdO").onclick=e=>{if(e.target.id==="evdO")rEvents();};
   g("evdDel").onclick=()=>{
     if(!confirm('למחוק את האירוע "'+ev.name+'"?'))return;
-    // Remove all budget entries for this event before deleting
-    (ev.expenses||[]).forEach(exp=>{if(exp.budgetEntry)removeEvtExpFromBudget(exp);});
     EVENTS=EVENTS.filter(e=>e.id!==eid);saveEvents();rEvents();
   };
   g("addExp").onclick=()=>{
     const desc=(g("expDesc").value||"").trim(),amt=parseFloat(g("expAmt").value),dt=g("expDate").value;
     if(!amt)return;
-    const catIdRaw=g("expCat")?.value;
-    const catId=catIdRaw?parseInt(catIdRaw):null;
-    const isPaid=!!(g("expPaid")?.checked);
-    const exp={id:Date.now(),desc:desc||'הוצאה',amount:amt,date:dt||today(),paid:isPaid,catId:catId||undefined};
-    if(isPaid&&catId){
-      const r=applyEvtExpToBudget(exp,ev.name);
-      if(r)exp.budgetEntry={entId:r.entId,month:r.month,catId};
-    }
-    ev.expenses.push(exp);
+    ev.expenses.push({id:Date.now(),desc:desc||'הוצאה',amount:amt,date:dt||today(),paid:!!(g("expPaid")?.checked)});
     saveEvents();rEventDetail(eid);
   };
   document.querySelectorAll(".togPay").forEach(btn=>btn.onclick=()=>{
     const exp=ev.expenses.find(e=>e.id===parseInt(btn.dataset.expid));
-    if(!exp)return;
-    if(!exp.paid){
-      exp.paid=true;
-      if(exp.catId){const r=applyEvtExpToBudget(exp,ev.name);if(r)exp.budgetEntry={entId:r.entId,month:r.month,catId:exp.catId};}
-    }else{
-      exp.paid=false;
-      if(exp.budgetEntry){removeEvtExpFromBudget(exp);delete exp.budgetEntry;}
-    }
-    saveEvents();rEventDetail(eid);
+    if(exp){exp.paid=!exp.paid;saveEvents();rEventDetail(eid);}
   });
   document.querySelectorAll(".delEvExp").forEach(btn=>btn.onclick=()=>{
-    const exp=ev.expenses.find(e=>e.id===parseInt(btn.dataset.expid));
-    if(exp?.budgetEntry)removeEvtExpFromBudget(exp);
     ev.expenses=ev.expenses.filter(e=>e.id!==parseInt(btn.dataset.expid));
     saveEvents();rEventDetail(eid);
   });
 }
 
-function applyEvtExpToBudget(exp,evtName){
-  if(!exp.catId)return null;
+function expCycleMonth(dateStr){
   const start=parseInt(getCfg().monthStart)||1;
-  let m=cycleMonthForDate(exp.date,start);
-  if(m===null)m=exp.date?parseInt(exp.date.split('-')[1])-1:S.month;
-  if(m<0||m>11)return null;
-  if(!S.mData[m]||!S.mData[m][exp.catId])return null;
-  const entId=Date.now();
-  S.mData[m][exp.catId].entries.push({id:entId,desc:exp.desc+(evtName?' ['+evtName+']':''),amount:exp.amount,date:exp.date||today()});
-  sv();
-  return{entId,month:m};
+  let m=cycleMonthForDate(dateStr,start);
+  if(m===null)m=dateStr?parseInt(dateStr.split('-')[1])-1:S.month;
+  return(m>=0&&m<=11)?m:S.month;
 }
-function removeEvtExpFromBudget(exp){
-  if(!exp.budgetEntry)return;
-  const{month:m,catId,entId}=exp.budgetEntry;
-  if(S.mData[m]&&S.mData[m][catId]){
-    S.mData[m][catId].entries=S.mData[m][catId].entries.filter(e=>e.id!==entId);
-    sv();
-  }
+function evtMonthTotal(mo){
+  return EVENTS.reduce((tot,ev)=>tot+(ev.expenses||[]).filter(e=>e.paid&&expCycleMonth(e.date)===mo).reduce((s,e)=>s+(parseFloat(e.amount)||0),0),0);
 }
 
 function rSearch(){
