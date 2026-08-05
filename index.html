@@ -53,6 +53,9 @@ th{padding:10px 8px;color:#64748b;font-weight:600;text-align:center;font-size:12
 const FB_CFG={apiKey:"AIzaSyDU4O_IGPDLc7VkHR5ZvRbLzU6HKSa1C_E",authDomain:"moti1-848e7.firebaseapp.com",projectId:"moti1-848e7",storageBucket:"moti1-848e7.firebasestorage.app",messagingSenderId:"177637818983",appId:"1:177637818983:web:4830fff93f2dfa6746cac2"};
 let db=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null,_getDoc=null;
 let USERS=[],CUR_UID='u1';
+let EVENTS=[];
+function loadEvents(){try{EVENTS=JSON.parse(localStorage.getItem('bdg_evt_'+CUR_UID)||'[]');}catch{EVENTS=[];}}
+function saveEvents(){try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}}
 function loadUsers(){
   try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS=[{id:'u1',name:'משתמש 1'}];saveUsers();}}catch{USERS=[{id:'u1',name:'משתמש 1'}];}
   try{CUR_UID=localStorage.getItem('bdg_cur_user')||'u1';}catch{CUR_UID='u1';}
@@ -425,12 +428,16 @@ function rTlb(){
     </div>
     <button id="oA" style="padding:7px 14px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">+ קטגוריה</button>
     <button id="oBudSug" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#f59e0b,#d97706);cursor:pointer">&#128161; הצעות</button>
+    <button id="oEvt" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#10b981,#059669);cursor:pointer">&#127881; אירועים</button>
+    <button id="oSrch" style="padding:7px 12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#64748b,#475569);cursor:pointer">&#128269; חיפוש</button>
     <button id="oE" style="padding:7px 14px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:13px;background:linear-gradient(135deg,#0ea5e9,#0284c7);cursor:pointer">&#11015; CSV</button>
   </div>`);
   g("vm").onclick=()=>{S.view="monthly";rTlb();rCnt();};
   g("vy").onclick=()=>{S.view="yearly";rTlb();rCnt();};
   g("oA").onclick=()=>rAddMod();
   g("oBudSug").onclick=()=>rBudgetSuggest();
+  g("oEvt").onclick=()=>rEvents();
+  g("oSrch").onclick=()=>rSearch();
   g("oE").onclick=doCSV;
 }
 
@@ -476,7 +483,8 @@ function rMon(){
   </div>`;
 
   // Cards with filter applied
-  const visCats=filt==='variable'?S.cats.filter(c=>!c.isRecurring):filt==='recurring'?S.cats.filter(c=>c.isRecurring||(S.mData[S.month]?.[c.id]?.entries||[]).some(e=>e.recurring)):S.cats;
+  const monthCats=S.cats.filter(c=>!c.activeMonths||c.activeMonths.includes(S.month));
+  const visCats=filt==='variable'?monthCats.filter(c=>!c.isRecurring):filt==='recurring'?monthCats.filter(c=>c.isRecurring||(S.mData[S.month]?.[c.id]?.entries||[]).some(e=>e.recurring)):monthCats;
   const cards=visCats.map(cat=>{
     const allEnt=S.mData[S.month]?.[cat.id]?.entries||[];
     const ent=filt==='all'?allEnt:filt==='recurring'?allEnt.filter(e=>e.recurring):allEnt.filter(e=>!e.recurring);
@@ -487,7 +495,7 @@ function rMon(){
     const pct=bud>0?Math.min((tot/bud)*100,100):0;
     const recCount=allEnt.filter(e=>e.recurring).length;
     const tr=trendHTML(cat.id);
-    return`<div style="background:#fff;border-radius:14px;padding:14px 16px;border:1px solid ${ov?'#fca5a5':'#e2e8f0'};box-shadow:0 1px 4px rgba(0,0,0,.05)">
+    return`<div data-catid="${cat.id}" style="background:#fff;border-radius:14px;padding:14px 16px;border:1px solid ${ov?'#fca5a5':'#e2e8f0'};box-shadow:0 1px 4px rgba(0,0,0,.05)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="oE" data-c="${cat.id}" style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
           <div style="width:8px;height:8px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
@@ -869,12 +877,21 @@ function rAddMod(){
       <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1e293b">קטגוריה קבועה</div><div style="font-size:11px;color:#94a3b8">לא תוצג בתצוגת הוצאות משתנות</div></div>
       <span style="font-size:20px">&#128260;</span>
     </label>
+    <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:#f8faff;border:1px solid #e2e8f0;cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="nLimitMonths" style="width:18px;height:18px;accent-color:#6366f1;flex-shrink:0" ${S.nc.activeMonths?'checked':''}/>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1e293b">חודשים ספציפיים בלבד</div><div style="font-size:11px;color:#94a3b8">הקטגוריה תופיע רק בחודשים שתבחר</div></div>
+    </label>
+    <div id="nMonPicker" style="display:${S.nc.activeMonths?'flex':'none'};flex-wrap:wrap;gap:6px;margin-bottom:14px">
+      ${MO.map((m,i)=>`<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid ${(S.nc.activeMonths||[]).includes(i)?'#6366f1':'#e2e8f0'};background:${(S.nc.activeMonths||[]).includes(i)?'#eef2ff':'#f8faff'};cursor:pointer;font-size:12px;font-weight:600;color:${(S.nc.activeMonths||[]).includes(i)?'#6366f1':'#64748b'}"><input type="checkbox" class="nMCb" value="${i}" style="display:none" ${(S.nc.activeMonths||[]).includes(i)?'checked':''}>${moLabel(i)}</label>`).join('')}
+    </div>
     <div style="display:flex;gap:8px">
       <button id="dA" style="flex:1;padding:11px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">הוסף</button>
       <button id="cA" style="flex:1;padding:11px;border-radius:10px;border:none;color:#64748b;font-weight:600;background:#f1f5f9;cursor:pointer">ביטול</button>
     </div>
   </div></div>`);
   document.querySelectorAll("#nS .csw").forEach(s=>s.onclick=()=>{S.nc.name=(g("nN")?.value||"");S.nc.budget=(g("nB")?.value||"");S.nc.budgetRec=(g("nBR")?.value||"");S.nc.color=s.dataset.c;S.nc.isRec=(g("nCatRec")?.checked||false);rAddMod();});
+  g("nLimitMonths").onchange=()=>{g("nMonPicker").style.display=g("nLimitMonths").checked?'flex':'none';};
+  document.querySelectorAll(".nMCb").forEach(cb=>{cb.parentElement.onclick=e=>{e.preventDefault();cb.checked=!cb.checked;const sel=cb.checked;cb.parentElement.style.background=sel?'#eef2ff':'#f8faff';cb.parentElement.style.color=sel?'#6366f1':'#64748b';cb.parentElement.style.borderColor=sel?'#6366f1':'#e2e8f0';};});
   g("cA").onclick=()=>ih("m2","");
   g("aO").onclick=e=>{if(e.target.id==="aO")ih("m2","");};
   g("dA").onclick=()=>{
@@ -883,6 +900,7 @@ function rAddMod(){
     const newCat={id:Date.now(),name:n,budget:b,color:S.nc.color};
     if(bR>0)newCat.budgetRec=bR;
     if(g("nCatRec")?.checked)newCat.isRecurring=true;
+    if(g("nLimitMonths")?.checked){const sel=[...document.querySelectorAll(".nMCb:checked")].map(cb=>parseInt(cb.value));if(sel.length)newCat.activeMonths=sel;}
     S.cats.push(newCat);
     eC(S.cats,S.mData);S.nc={name:"",budget:"",budgetRec:"",color:"#6366f1",isRec:false};
     sv();ih("m2","");rMon();
@@ -904,11 +922,18 @@ function rEditMod(){
       </div>
       <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:6px;letter-spacing:.5px">צבע</label>
       <div id="eS" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${sw(ec.color)}</div>
-      <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:#f8faff;border:1px solid #e2e8f0;cursor:pointer;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:#f8faff;border:1px solid #e2e8f0;cursor:pointer;margin-bottom:8px">
         <input type="checkbox" id="eCatRec" style="width:18px;height:18px;accent-color:#6366f1;flex-shrink:0" ${ec.isRecurring?'checked':''}/>
         <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1e293b">קטגוריה קבועה</div><div style="font-size:11px;color:#94a3b8">לא תוצג בתצוגת הוצאות משתנות</div></div>
         <span style="font-size:20px">&#128260;</span>
       </label>
+      <label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:#f8faff;border:1px solid #e2e8f0;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="eLimitMonths" style="width:18px;height:18px;accent-color:#6366f1;flex-shrink:0" ${ec.activeMonths?'checked':''}/>
+        <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1e293b">חודשים ספציפיים בלבד</div><div style="font-size:11px;color:#94a3b8">הקטגוריה תופיע רק בחודשים שתבחר</div></div>
+      </label>
+      <div id="eMonPicker" style="display:${ec.activeMonths?'flex':'none'};flex-wrap:wrap;gap:6px;margin-bottom:12px">
+        ${MO.map((mo,i)=>`<label style="display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1px solid ${(ec.activeMonths||[]).includes(i)?'#6366f1':'#e2e8f0'};background:${(ec.activeMonths||[]).includes(i)?'#eef2ff':'#f8faff'};cursor:pointer;font-size:12px;font-weight:600;color:${(ec.activeMonths||[]).includes(i)?'#6366f1':'#64748b'}"><input type="checkbox" class="eMCb" value="${i}" style="display:none" ${(ec.activeMonths||[]).includes(i)?'checked':''}>${moLabel(i)}</label>`).join('')}
+      </div>
       <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:5px;letter-spacing:.5px">תתי-קטגוריות</label>
       <div id="subEL" style="margin-bottom:6px">${subItems||'<div style="font-size:12px;color:#cbd5e1;padding:3px 0">אין תתי-קטגוריות</div>'}</div>
       <div style="display:flex;gap:6px;margin-bottom:16px">
@@ -923,6 +948,8 @@ function rEditMod(){
     </div></div>`);
     const capSubs=()=>{editSubs=editSubs.map(s=>{const el=document.querySelector('.subBudget[data-sid="'+s.id+'"]');const b=parseFloat(el?.value)||0;return b?{...s,budget:b}:{id:s.id,name:s.name};});};
     document.querySelectorAll("#eS .csw").forEach(s=>s.onclick=()=>{capSubs();S.eCat.name=(g("eN")?.value||S.eCat.name);S.eCat.budget=parseFloat(g("eB")?.value)||S.eCat.budget;const bR=parseFloat(g("eBR")?.value);if(bR>0)S.eCat.budgetRec=bR;else delete S.eCat.budgetRec;S.eCat.color=s.dataset.c;S.eCat.subs=editSubs;rEditMod();});
+    g("eLimitMonths").onchange=()=>{g("eMonPicker").style.display=g("eLimitMonths").checked?'flex':'none';};
+    document.querySelectorAll(".eMCb").forEach(cb=>{cb.parentElement.onclick=e=>{e.preventDefault();cb.checked=!cb.checked;const sel=cb.checked;cb.parentElement.style.background=sel?'#eef2ff':'#f8faff';cb.parentElement.style.color=sel?'#6366f1':'#64748b';cb.parentElement.style.borderColor=sel?'#6366f1':'#e2e8f0';};});
     g("cEd").onclick=()=>ih("m3","");
     g("edO").onclick=e=>{if(e.target.id==="edO")ih("m3","");};
     g("addSubB").onclick=()=>{capSubs();const n=(g("newSubN").value||"").trim();if(!n)return;const bN=parseFloat(g("newSubB")?.value)||0;const newS={id:Date.now(),name:n};if(bN>0)newS.budget=bN;editSubs=[...editSubs,newS];buildEM();};
@@ -933,6 +960,7 @@ function rEditMod(){
       S.eCat.name=g("eN").value.trim();S.eCat.budget=parseFloat(g("eB").value)||0;
       const bR=parseFloat(g("eBR").value);if(bR>0)S.eCat.budgetRec=bR;else delete S.eCat.budgetRec;
       if(g("eCatRec").checked)S.eCat.isRecurring=true;else delete S.eCat.isRecurring;
+      if(g("eLimitMonths")?.checked){const sel=[...document.querySelectorAll(".eMCb:checked")].map(cb=>parseInt(cb.value));if(sel.length)S.eCat.activeMonths=sel;else delete S.eCat.activeMonths;}else delete S.eCat.activeMonths;
       if(editSubs.length)S.eCat.subs=editSubs;else delete S.eCat.subs;
       S.cats=S.cats.map(c=>c.id===S.eCat.id?{...S.eCat}:c);
       sv();ih("m3","");rMon();
@@ -1318,6 +1346,205 @@ function doCSV(){
   const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="תקציב_"+S.year+".csv";a.click();
 }
 
+function rEvents(){
+  ih("m2",`<div class="overlay" id="evO"><div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:17px;font-weight:800;color:#1e293b">&#127881; אירועים</div>
+      <button id="cEvt" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
+    </div>
+    ${EVENTS.length?EVENTS.map(ev=>{
+      const paid=(ev.expenses||[]).filter(e=>e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+      const pending=(ev.expenses||[]).filter(e=>!e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+      const total=paid+pending;
+      const paidPct=ev.budget>0?Math.min(100,Math.round(paid/ev.budget*100)):0;
+      const pendPct=ev.budget>0?Math.min(100-paidPct,Math.round(pending/ev.budget*100)):0;
+      const over=total>ev.budget;
+      return`<div class="evCard" data-eid="${ev.id}" style="padding:14px;border-radius:14px;border:1px solid ${over?'#fecaca':'#e2e8f0'};background:${over?'#fff5f5':'#fff'};margin-bottom:10px;cursor:pointer">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:15px;font-weight:800;color:#1e293b">${ev.name}</span>
+          <span style="font-size:12px;color:${over?'#ef4444':'#10b981'};font-weight:700">${over?'חריגה':'נותר'} &#8362;${fm(Math.abs(ev.budget-total))}</span>
+        </div>
+        <div style="background:#f1f5f9;border-radius:6px;height:6px;margin-bottom:6px;position:relative;overflow:hidden">
+          <div style="position:absolute;right:0;top:0;height:6px;background:#6366f1;border-radius:6px;width:${paidPct+pendPct}%"></div>
+          <div style="position:absolute;right:0;top:0;height:6px;background:#6366f1;border-radius:6px;width:${paidPct}%"></div>
+          <div style="position:absolute;right:${paidPct}%;top:0;height:6px;background:#f59e0b;width:${pendPct}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8">
+          <span>&#10003; שולם &#8362;${fm(paid)}${pending>0?` &nbsp;&#9676; ממתין &#8362;${fm(pending)}`:''}</span>
+          <span>תקציב &#8362;${fm(ev.budget)}</span>
+        </div>
+      </div>`;
+    }).join(''):'<div style="text-align:center;padding:32px;color:#94a3b8;font-size:14px">אין אירועים עדיין</div>'}
+    <div style="background:#f8faff;border-radius:14px;border:1px dashed #c7d2fe;padding:14px;margin-top:6px">
+      <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px">+ אירוע חדש</div>
+      <input class="inp" id="evtName" placeholder="שם האירוע (למשל: בר מצווה)" style="margin-bottom:8px"/>
+      <input class="inp" id="evtBudget" type="number" placeholder="תקציב (&#8362;)" style="margin-bottom:10px"/>
+      <button id="addEvt" style="width:100%;padding:10px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#10b981,#059669);cursor:pointer">צור אירוע</button>
+    </div>
+  </div></div>`);
+  g("cEvt").onclick=()=>ih("m2","");
+  g("evO").onclick=e=>{if(e.target.id==="evO")ih("m2","");};
+  g("addEvt").onclick=()=>{
+    const n=(g("evtName").value||"").trim(),b=parseFloat(g("evtBudget").value);
+    if(!n||!b)return;
+    EVENTS.push({id:Date.now(),name:n,budget:b,expenses:[]});
+    saveEvents();rEvents();
+  };
+  document.querySelectorAll(".evCard").forEach(el=>el.onclick=()=>rEventDetail(parseInt(el.dataset.eid)));
+}
+
+function rEventDetail(eid){
+  const ev=EVENTS.find(e=>e.id===eid);
+  if(!ev)return;
+  const paidAmt=(ev.expenses||[]).filter(e=>e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const pendAmt=(ev.expenses||[]).filter(e=>!e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const total=paidAmt+pendAmt;
+  const rem=ev.budget-total;
+  const over=rem<0;
+  const paidPct=ev.budget>0?Math.min(100,Math.round(paidAmt/ev.budget*100)):0;
+  const pendPct=ev.budget>0?Math.min(100-paidPct,Math.round(pendAmt/ev.budget*100)):0;
+  const exps=(ev.expenses||[]).slice().reverse();
+  ih("m2",`<div class="overlay" id="evdO"><div class="modal">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button id="evdBack" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:20px;color:#64748b;line-height:1">&#8250;</button>
+      <div style="flex:1;font-size:17px;font-weight:800;color:#1e293b">${ev.name}</div>
+      <button id="evdDel" style="background:#fff0f0;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;color:#ef4444;font-weight:600">מחק</button>
+    </div>
+    <div style="background:${over?'#fff5f5':'#f8faff'};border:1px solid ${over?'#fecaca':'#e2e8f0'};border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <div style="text-align:center"><div style="font-size:10px;color:#94a3b8;margin-bottom:2px">תקציב</div><div style="font-size:16px;font-weight:800;color:#1e293b">&#8362;${fm(ev.budget)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px;color:#10b981;margin-bottom:2px">&#10003; שולם</div><div style="font-size:16px;font-weight:800;color:#10b981">&#8362;${fm(paidAmt)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px;color:#f59e0b;margin-bottom:2px">&#9676; ממתין</div><div style="font-size:16px;font-weight:800;color:#f59e0b">&#8362;${fm(pendAmt)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px;color:${over?'#ef4444':'#64748b'};margin-bottom:2px">${over?'חריגה':'נותר'}</div><div style="font-size:16px;font-weight:800;color:${over?'#ef4444':'#64748b'}">&#8362;${fm(Math.abs(rem))}</div></div>
+      </div>
+      <div style="background:#e2e8f0;border-radius:6px;height:8px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:0;top:0;height:8px;background:#10b981;width:${paidPct}%;border-radius:6px 0 0 6px;transition:width .3s"></div>
+        <div style="position:absolute;right:${paidPct}%;top:0;height:8px;background:#fbbf24;width:${pendPct}%"></div>
+      </div>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">הוצאות (${(ev.expenses||[]).length})</div>
+    <div style="max-height:30vh;overflow-y:auto;margin-bottom:12px">
+      ${exps.length?exps.map(e=>`<div style="display:flex;align-items:center;padding:8px 10px;border-radius:10px;background:${e.paid?'#fff':'#fffbeb'};border:1px solid ${e.paid?'#f1f5f9':'#fde68a'};margin-bottom:5px;gap:8px">
+        <button class="togPay" data-expid="${e.id}" style="width:26px;height:26px;border-radius:50%;border:2px solid ${e.paid?'#10b981':'#fbbf24'};background:${e.paid?'#10b981':'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;padding:0">${e.paid?'&#10003;':''}</button>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:${e.paid?'#1e293b':'#92400e'}">${e.desc}</div>
+          <div style="font-size:11px;color:#94a3b8">${e.date?fmDate(e.date):''}${!e.paid?' &nbsp;&#9676; ממתין לתשלום':''}</div>
+        </div>
+        <span style="font-size:14px;font-weight:800;color:${e.paid?'#6366f1':'#f59e0b'}">&#8362;${fm(e.amount)}</span>
+        <button class="delEvExp" data-expid="${e.id}" style="background:transparent;border:none;cursor:pointer;font-size:18px;color:#cbd5e1;padding:2px;line-height:1">&times;</button>
+      </div>`).join(''):'<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:13px">אין הוצאות עדיין</div>'}
+    </div>
+    <div style="background:#f8faff;border-radius:12px;border:1px dashed #c7d2fe;padding:12px">
+      <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:8px">+ הוצאה חדשה</div>
+      <input class="inp" id="expDesc" placeholder="תיאור" style="margin-bottom:6px"/>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input class="inp" id="expAmt" type="number" placeholder="סכום (&#8362;)" style="flex:1"/>
+        <input class="inp" id="expDate" type="date" value="${today()}" style="flex:1"/>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer">
+        <input type="checkbox" id="expPaid" style="width:18px;height:18px;accent-color:#10b981;flex-shrink:0"/>
+        <span style="font-size:13px;color:#1e293b;font-weight:600">שולמה כבר</span>
+      </label>
+      <button id="addExp" style="width:100%;padding:10px;border-radius:10px;border:none;color:#fff;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer">הוסף הוצאה</button>
+    </div>
+  </div></div>`);
+  g("evdBack").onclick=()=>rEvents();
+  g("evdO").onclick=e=>{if(e.target.id==="evdO")rEvents();};
+  g("evdDel").onclick=()=>{
+    if(!confirm('למחוק את האירוע "'+ev.name+'"?'))return;
+    EVENTS=EVENTS.filter(e=>e.id!==eid);saveEvents();rEvents();
+  };
+  g("addExp").onclick=()=>{
+    const desc=(g("expDesc").value||"").trim(),amt=parseFloat(g("expAmt").value),dt=g("expDate").value;
+    if(!amt)return;
+    ev.expenses.push({id:Date.now(),desc:desc||'הוצאה',amount:amt,date:dt||today(),paid:!!(g("expPaid")?.checked)});
+    saveEvents();rEventDetail(eid);
+  };
+  document.querySelectorAll(".togPay").forEach(btn=>btn.onclick=()=>{
+    const exp=ev.expenses.find(e=>e.id===parseInt(btn.dataset.expid));
+    if(exp){exp.paid=!exp.paid;saveEvents();rEventDetail(eid);}
+  });
+  document.querySelectorAll(".delEvExp").forEach(btn=>btn.onclick=()=>{
+    ev.expenses=ev.expenses.filter(e=>e.id!==parseInt(btn.dataset.expid));
+    saveEvents();rEventDetail(eid);
+  });
+}
+
+function rSearch(){
+  // Collect all entries across all months and categories for the current year
+  function allEntries(){
+    const res=[];
+    for(let m=0;m<12;m++){
+      (S.mData[m]?.income||[]).forEach(e=>{
+        res.push({...e,catName:'הכנסה',catColor:'#10b981',month:m,isIncome:true});
+      });
+      S.cats.forEach(c=>{
+        (S.mData[m]?.[c.id]?.entries||[]).forEach(e=>{
+          res.push({...e,catName:c.name,catColor:c.color,catId:c.id,month:m});
+        });
+      });
+    }
+    // Sort by date descending
+    return res.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  }
+
+  ih("m2",`<div class="overlay" id="srchO"><div class="modal" style="padding:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="font-size:20px">&#128269;</span>
+      <input class="inp" id="srchQ" placeholder="חיפוש לפי תיאור, סכום, קטגוריה..." style="flex:1;font-size:15px"/>
+      <button id="cSrch" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b;flex-shrink:0">&times;</button>
+    </div>
+    <div id="srchRes" style="max-height:65vh;overflow-y:auto"></div>
+  </div></div>`);
+  g("cSrch").onclick=()=>ih("m2","");
+  g("srchO").onclick=e=>{if(e.target.id==="srchO")ih("m2","");};
+
+  const entries=allEntries();
+
+  function renderResults(q){
+    const el=g("srchRes");if(!el)return;
+    const qL=q.trim().toLowerCase();
+    if(!qL){el.innerHTML='<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px">התחל להקליד כדי לחפש</div>';return;}
+    const hits=entries.filter(e=>{
+      const desc=(e.desc||'').toLowerCase();
+      const amt=String(e.amount||'');
+      const cat=(e.catName||'').toLowerCase();
+      return desc.includes(qL)||amt.includes(qL)||cat.includes(qL);
+    });
+    if(!hits.length){el.innerHTML='<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px">לא נמצאו תוצאות</div>';return;}
+    el.innerHTML=hits.slice(0,60).map(e=>`
+      <div class="srchRow" data-m="${e.month}" data-cid="${e.catId||''}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid #f1f5f9;margin-bottom:6px;cursor:pointer">
+        <div style="width:8px;height:8px;border-radius:50%;background:${e.catColor};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.desc||'(ללא תיאור)'}</div>
+          <div style="font-size:11px;color:#94a3b8">${e.catName} &middot; ${moLabel(e.month)} ${S.year}${e.date?' &middot; '+fmDate(e.date):''}</div>
+        </div>
+        <span style="font-size:14px;font-weight:800;color:${e.isIncome?'#10b981':'#6366f1'};flex-shrink:0">${e.isIncome?'+':''}&#8362;${fm(e.amount)}</span>
+      </div>`).join('');
+    el.querySelectorAll(".srchRow").forEach((row,i)=>{
+      const hit=hits[i];
+      row.onclick=()=>{
+        ih("m2","");
+        S.month=hit.month;S.year=new Date().getFullYear();
+        S.view="monthly";
+        rAll();
+        if(hit.catId){
+          // Scroll to category card after render
+          requestAnimationFrame(()=>{
+            const card=document.querySelector(`[data-catid="${hit.catId}"]`);
+            if(card)card.scrollIntoView({behavior:'smooth',block:'center'});
+          });
+        }
+      };
+    });
+  }
+
+  const inp=g("srchQ");
+  inp.oninput=()=>renderResults(inp.value);
+  renderResults('');
+  requestAnimationFrame(()=>{if(inp)inp.focus();});
+}
+
 function rAll(){rHdr();rTlb();rCnt();}
 
 const cntEl=document.getElementById("cnt");
@@ -1354,9 +1581,12 @@ window.installApp=installApp;
 window.S=S;
 window.rEntMod=rEntMod;
 window.rUserMod=rUserMod;
+window.rEvents=rEvents;
+window.rEventDetail=rEventDetail;
+window.rSearch=rSearch;
 
 // Render immediately from localStorage — no Firebase dependency
-loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();
+loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();loadEvents();
 // Re-distribute entries to correct cycle buckets on every startup
 {const start=parseInt(getCfg().monthStart)||1;if(start>1){const nd=migrateToStartDay(S.mData,S.cats,start);if(JSON.stringify(nd)!==JSON.stringify(S.mData)){S.mData=nd;sv();}}}
 rLockScreen();
