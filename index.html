@@ -75,29 +75,20 @@ function fbSaveEvents(){
   if(!db||!_setDoc||!_doc)return;
   _setDoc(_doc(db,'budget',HH_ID+'_evt_'+CUR_UID),{events:EVENTS}).catch(e=>console.warn('FB evt save:',e));
 }
-function mergeFbEvents(fbEvts){
-  // Merge: add any event from Firebase that isn't in local storage
-  let changed=false;
-  fbEvts.forEach(fe=>{
-    if(!EVENTS.find(e=>e.id===fe.id)){EVENTS.push(fe);changed=true;}
-  });
-  if(changed){
-    try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}
-    if(g('evO')||g('evdO'))rEvents();
-  }
-}
 function fbLoadEvents(){
   if(!db||!_getDoc||!_doc)return;
   _getDoc(_doc(db,'budget',HH_ID+'_evt_'+CUR_UID)).then(snap=>{
-    if(snap.exists())return mergeFbEvents(snap.data().events||[]);
-    // One-time migration: pre-sync-code installs all shared this exact
-    // unscoped document, so pull it once and copy it into our own private
-    // space instead of losing history when the sync code was introduced.
-    return _getDoc(_doc(db,'budget','_evt_'+CUR_UID)).then(legacy=>{
-      if(!legacy.exists())return;
-      mergeFbEvents(legacy.data().events||[]);
-      fbSaveEvents();
+    if(!snap.exists())return;
+    const fbEvts=snap.data().events||[];
+    // Merge: add any event from Firebase that isn't in local storage
+    let changed=false;
+    fbEvts.forEach(fe=>{
+      if(!EVENTS.find(e=>e.id===fe.id)){EVENTS.push(fe);changed=true;}
     });
+    if(changed){
+      try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}
+      if(g('evO')||g('evdO'))rEvents();
+    }
   }).catch(e=>console.warn('FB evt load:',e));
 }
 function loadUsers(){
@@ -115,34 +106,27 @@ function fbSaveUsers(){
   if(!db||!_setDoc||!_doc)return;
   _setDoc(_doc(db,'budget',HH_ID+'_users'),{users:USERS}).catch(e=>console.warn('FB users save:',e));
 }
-function mergeFbUsers(fbUsers){
-  let changed=false;
-  fbUsers.forEach(fu=>{
-    const local=USERS.find(u=>u.id===fu.id);
-    if(!local){USERS.push(fu);changed=true;}
-    else{
-      if(fu.pin&&!local.pin){local.pin=fu.pin;changed=true;}
-      if(fu.name&&fu.name!==local.name&&!local.name){local.name=fu.name;changed=true;}
-    }
-  });
-  fbSaveUsers();
-  if(changed){
-    try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
-    rHdr();
-    if(g('uO'))rUserMod();
-  }
-  const cur=USERS.find(u=>u.id===CUR_UID);
-  if(cur?.pin&&!isUnlocked(CUR_UID)&&!g('lockPin'))rLockScreen();
-}
 function fbLoadUsers(){
   if(!db||!_getDoc||!_doc)return;
   _getDoc(_doc(db,'budget',HH_ID+'_users')).then(snap=>{
-    if(snap.exists())return mergeFbUsers(snap.data().users||[]);
-    // One-time migration from the pre-sync-code shared document.
-    return _getDoc(_doc(db,'budget','_users')).then(legacy=>{
-      const legacyUsers=legacy.exists()?(legacy.data().users||[]):[];
-      if(legacyUsers.length)mergeFbUsers(legacyUsers);
+    const fbUsers=snap.exists()?(snap.data().users||[]):[];
+    let changed=false;
+    fbUsers.forEach(fu=>{
+      const local=USERS.find(u=>u.id===fu.id);
+      if(!local){USERS.push(fu);changed=true;}
+      else{
+        if(fu.pin&&!local.pin){local.pin=fu.pin;changed=true;}
+        if(fu.name&&fu.name!==local.name&&!local.name){local.name=fu.name;changed=true;}
+      }
     });
+    fbSaveUsers();
+    if(changed){
+      try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
+      rHdr();
+      if(g('uO'))rUserMod();
+    }
+    const cur=USERS.find(u=>u.id===CUR_UID);
+    if(cur?.pin&&!isUnlocked(CUR_UID)&&!g('lockPin'))rLockScreen();
   }).catch(e=>console.warn('FB users load:',e));
 }
 function fbSave(){
@@ -165,53 +149,32 @@ function applyBudgets(cats){
     });
   }catch{}
 }
-function applyFbBudgets(bdata){
-  try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
-  applyBudgets(S.cats);rAll();
-}
 function fbLoadBudgets(){
   if(!db||!_getDoc||!_doc)return;
   _getDoc(_doc(db,'budget',HH_ID+'_bud_'+CUR_UID)).then(snap=>{
-    if(snap.exists())return applyFbBudgets(snap.data().b||[]);
-    // One-time migration from the pre-sync-code shared document.
-    return _getDoc(_doc(db,'budget','_bud_'+CUR_UID)).then(legacy=>{
-      if(!legacy.exists())return;
-      const bdata=legacy.data().b||[];
-      applyFbBudgets(bdata);
-      if(_setDoc)_setDoc(_doc(db,'budget',HH_ID+'_bud_'+CUR_UID),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
-    });
+    if(!snap.exists())return;
+    const bdata=snap.data().b||[];
+    try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
+    applyBudgets(S.cats);rAll();
   }).catch(e=>console.warn('FB bud load:',e));
-}
-function applyFbMonth(snap,year){
-  if(!snap.exists())return;
-  const d=snap.data();
-  S.cats=d.cats||DF.map(c=>({...c}));
-  S.mData=d.mData||iMD(S.cats);
-  eC(S.cats,S.mData);
-  const _start=parseInt(getCfg().monthStart)||1;
-  if(_start>1){const _nd=migrateToStartDay(S.mData,S.cats,_start);if(JSON.stringify(_nd)!==JSON.stringify(S.mData)){S.mData=_nd;fbSave();}}
-  applyBudgets(S.cats);
-  try{localStorage.setItem(sk(year),JSON.stringify({cats:S.cats,mData:S.mData}));}catch{}
-  const open=['m1','m2','m3'].some(id=>{const el=g(id);return el&&el.innerHTML.trim();});
-  if(!open)rAll();
-  setSyncDot(true);
 }
 function fbListen(year){
   if(!db||!_onSnapshot||!_doc){return;}
   if(unsubFire)unsubFire();
-  const newRef=_doc(db,'budget',HH_ID+'_'+CUR_UID+'_'+String(year));
-  const attach=()=>{unsubFire=_onSnapshot(newRef,snap=>applyFbMonth(snap,year),e=>{console.warn('FB listen:',e);setSyncDot(false);});};
-  if(!_getDoc){attach();return;}
-  _getDoc(newRef).then(snap=>{
-    if(snap.exists()){attach();return;}
-    // One-time migration: pre-sync-code installs all shared this exact
-    // unscoped document, so pull it once and copy it into our own private
-    // space instead of losing history when the sync code was introduced.
-    _getDoc(_doc(db,'budget',CUR_UID+'_'+String(year))).then(legacy=>{
-      if(legacy.exists()){applyFbMonth(legacy,year);fbSave();}
-      attach();
-    }).catch(()=>attach());
-  }).catch(()=>attach());
+  unsubFire=_onSnapshot(_doc(db,'budget',HH_ID+'_'+CUR_UID+'_'+String(year)),snap=>{
+    if(!snap.exists())return;
+    const d=snap.data();
+    S.cats=d.cats||DF.map(c=>({...c}));
+    S.mData=d.mData||iMD(S.cats);
+    eC(S.cats,S.mData);
+    const _start=parseInt(getCfg().monthStart)||1;
+    if(_start>1){const _nd=migrateToStartDay(S.mData,S.cats,_start);if(JSON.stringify(_nd)!==JSON.stringify(S.mData)){S.mData=_nd;fbSave();}}
+    applyBudgets(S.cats);
+    try{localStorage.setItem(sk(year),JSON.stringify({cats:S.cats,mData:S.mData}));}catch{}
+    const open=['m1','m2','m3'].some(id=>{const el=g(id);return el&&el.innerHTML.trim();});
+    if(!open)rAll();
+    setSyncDot(true);
+  },e=>{console.warn('FB listen:',e);setSyncDot(false);});
 }
 function setSyncDot(ok){const el=g('syncDot');if(el)el.style.background=ok?'#10b981':'#ef4444';}
 
