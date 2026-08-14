@@ -53,18 +53,6 @@ th{padding:10px 8px;color:#64748b;font-weight:600;text-align:center;font-size:12
 const FB_CFG={apiKey:"AIzaSyDU4O_IGPDLc7VkHR5ZvRbLzU6HKSa1C_E",authDomain:"moti1-848e7.firebaseapp.com",projectId:"moti1-848e7",storageBucket:"moti1-848e7.firebasestorage.app",messagingSenderId:"177637818983",appId:"1:177637818983:web:4830fff93f2dfa6746cac2"};
 let db=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null,_getDoc=null;
 let USERS=[],CUR_UID='u1';
-// Household sync code: scopes every Firestore path so unrelated installs
-// (which all default to the same local profile id "u1") never collide on
-// the same cloud documents. Only devices that deliberately share this code
-// (via the sync settings screen) see each other's data.
-function genHHId(){
-  try{if(crypto.randomUUID)return crypto.randomUUID().replace(/-/g,'').slice(0,10);}catch{}
-  return 'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-}
-function sanitizeHHId(s){return(s||'').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60);}
-let HH_ID=null;
-try{HH_ID=sanitizeHHId(localStorage.getItem('bdg_hh_id'));}catch{}
-if(!HH_ID){HH_ID=genHHId();try{localStorage.setItem('bdg_hh_id',HH_ID);}catch{}}
 let EVENTS=[];
 function loadEvents(){try{EVENTS=JSON.parse(localStorage.getItem('bdg_evt_'+CUR_UID)||'[]');}catch{EVENTS=[];}}
 function saveEvents(){
@@ -73,11 +61,11 @@ function saveEvents(){
 }
 function fbSaveEvents(){
   if(!db||!_setDoc||!_doc)return;
-  _setDoc(_doc(db,'budget',HH_ID+'_evt_'+CUR_UID),{events:EVENTS}).catch(e=>console.warn('FB evt save:',e));
+  _setDoc(_doc(db,'budget','_evt_'+CUR_UID),{events:EVENTS}).catch(e=>console.warn('FB evt save:',e));
 }
 function fbLoadEvents(){
   if(!db||!_getDoc||!_doc)return;
-  _getDoc(_doc(db,'budget',HH_ID+'_evt_'+CUR_UID)).then(snap=>{
+  _getDoc(_doc(db,'budget','_evt_'+CUR_UID)).then(snap=>{
     if(!snap.exists())return;
     const fbEvts=snap.data().events||[];
     // Merge: add any event from Firebase that isn't in local storage
@@ -104,11 +92,11 @@ function saveUsers(){
 
 function fbSaveUsers(){
   if(!db||!_setDoc||!_doc)return;
-  _setDoc(_doc(db,'budget',HH_ID+'_users'),{users:USERS}).catch(e=>console.warn('FB users save:',e));
+  _setDoc(_doc(db,'budget','_users'),{users:USERS}).catch(e=>console.warn('FB users save:',e));
 }
 function fbLoadUsers(){
   if(!db||!_getDoc||!_doc)return;
-  _getDoc(_doc(db,'budget',HH_ID+'_users')).then(snap=>{
+  _getDoc(_doc(db,'budget','_users')).then(snap=>{
     const fbUsers=snap.exists()?(snap.data().users||[]):[];
     let changed=false;
     fbUsers.forEach(fu=>{
@@ -131,12 +119,12 @@ function fbLoadUsers(){
 }
 function fbSave(){
   if(!db||!_setDoc||!_doc)return;
-  _setDoc(_doc(db,'budget',HH_ID+'_'+CUR_UID+'_'+String(S.year)),{cats:S.cats,mData:S.mData}).catch(e=>console.warn('FB save:',e));
+  _setDoc(_doc(db,'budget',CUR_UID+'_'+String(S.year)),{cats:S.cats,mData:S.mData}).catch(e=>console.warn('FB save:',e));
 }
 function saveBudgets(){
   const bdata=S.cats.map(c=>({id:c.id,budget:c.budget||0,budgetRec:c.budgetRec||0,subs:(c.subs||[]).map(s=>({id:s.id,budget:s.budget||0}))}));
   try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
-  if(db&&_setDoc&&_doc)_setDoc(_doc(db,'budget',HH_ID+'_bud_'+CUR_UID),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
+  if(db&&_setDoc&&_doc)_setDoc(_doc(db,'budget','_bud_'+CUR_UID),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
 }
 function applyBudgets(cats){
   try{
@@ -151,7 +139,7 @@ function applyBudgets(cats){
 }
 function fbLoadBudgets(){
   if(!db||!_getDoc||!_doc)return;
-  _getDoc(_doc(db,'budget',HH_ID+'_bud_'+CUR_UID)).then(snap=>{
+  _getDoc(_doc(db,'budget','_bud_'+CUR_UID)).then(snap=>{
     if(!snap.exists())return;
     const bdata=snap.data().b||[];
     try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
@@ -161,7 +149,7 @@ function fbLoadBudgets(){
 function fbListen(year){
   if(!db||!_onSnapshot||!_doc){return;}
   if(unsubFire)unsubFire();
-  unsubFire=_onSnapshot(_doc(db,'budget',HH_ID+'_'+CUR_UID+'_'+String(year)),snap=>{
+  unsubFire=_onSnapshot(_doc(db,'budget',CUR_UID+'_'+String(year)),snap=>{
     if(!snap.exists())return;
     const d=snap.data();
     S.cats=d.cats||DF.map(c=>({...c}));
@@ -1187,17 +1175,6 @@ function rUserMod(view=null,_=null,switchId=null){
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:18px">לדוגמה: יום 15 — מה-15 עד ה-14 בחודש הבא</div>
 
-        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:6px">&#128257; סנכרון בין מכשירים</div>
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">קוד זה מזהה את הנתונים שלכם בענן. הזינו אותו במכשיר נוסף כדי לסנכרן ביניהם — שתפו אותו רק עם מי שאמור לראות ולערוך את אותם הנתונים.</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <input class="inp" id="hhCode" readonly value="${HH_ID}" style="flex:1;padding:9px 12px;font-family:monospace;text-align:center;letter-spacing:1px"/>
-          <button id="copyHH" style="padding:9px 14px;border-radius:10px;border:none;background:#6366f1;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">העתק</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:18px">
-          <input class="inp" id="joinHH" placeholder="הדבק קוד ממכשיר אחר" style="flex:1;padding:9px 12px;font-family:monospace;text-align:center"/>
-          <button id="doJoinHH" style="padding:9px 14px;border-radius:10px;border:none;background:#f1f5f9;color:#475569;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">התחבר</button>
-        </div>
-
         ${others.length?`<div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:8px">&#128100; משתמשים נוספים</div>
         ${others.map(u=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#f8faff;border:1px solid #e2e8f0;margin-bottom:7px">
           <div style="width:34px;height:34px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#64748b;flex-shrink:0">${u.name.charAt(0)}</div>
@@ -1238,22 +1215,6 @@ function rUserMod(view=null,_=null,switchId=null){
     g("addU").onclick=()=>{
       const name=(g("newUN").value||"").trim();if(!name)return;
       USERS.push({id:'u'+Date.now(),name});saveUsers();rUserMod('edit');
-    };
-    g("copyHH").onclick=()=>{
-      navigator.clipboard?.writeText(HH_ID).then(()=>{
-        g("copyHH").textContent="הועתק!";
-        setTimeout(()=>{if(g("copyHH"))g("copyHH").textContent="העתק";},1500);
-      }).catch(()=>{});
-    };
-    g("doJoinHH").onclick=()=>{
-      const code=sanitizeHHId(g("joinHH").value);
-      if(!code||code===HH_ID)return;
-      if(!confirm("החיבור לקוד אחר יציג את הנתונים המסונכרנים של אותו קוד במקום הנתונים הנוכחיים. להמשיך?"))return;
-      HH_ID=code;
-      try{localStorage.setItem('bdg_hh_id',HH_ID);}catch{}
-      ih("m2","");
-      if(db){fbLoadUsers();fbLoadEvents();fbLoadBudgets();fbListen(S.year);}
-      rAll();
     };
     if(g("bioBtn")){
       g("bioBtn").onclick=async()=>{
