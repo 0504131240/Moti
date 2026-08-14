@@ -1111,7 +1111,7 @@ function rUserMod(view=null,_=null,switchId=null){
       <div id="pinErr" style="color:#ef4444;font-size:12px;text-align:center;margin-top:8px;display:none">&#10060; סיסמה שגויה</div>
       <button id="backBtn" style="width:100%;padding:8px;border-radius:10px;border:none;color:#94a3b8;background:transparent;cursor:pointer;font-size:13px;margin-top:6px">&#8592; חזור</button>
     </div></div>`);
-    const doSwitch=()=>{CUR_UID=switchId;saveUsers();ld();ih("m2","");if(db)fbListen(S.year);setUnlocked(CUR_UID);rAll();};
+    const doSwitch=()=>{CUR_UID=switchId;saveUsers();ld();loadEvents();ih("m2","");if(db){fbListen(S.year);fbLoadEvents();}setUnlocked(CUR_UID);rAll();};
     const hasBio=canUseBiometric()&&hasBiometric(switchId);
     const showPinFields=()=>{
       if(g("pinEnter"))g("pinEnter").style.display='';
@@ -1229,7 +1229,7 @@ function rUserMod(view=null,_=null,switchId=null){
     document.querySelectorAll(".swUser").forEach(b=>b.onclick=()=>{
       const u=USERS.find(u=>u.id===b.dataset.uid);
       if(u?.pin){rUserMod(null,null,b.dataset.uid);}
-      else{CUR_UID=b.dataset.uid;saveUsers();ld();ih("m2","");if(db)fbListen(S.year);setUnlocked(CUR_UID);rAll();}
+      else{CUR_UID=b.dataset.uid;saveUsers();ld();loadEvents();ih("m2","");if(db){fbListen(S.year);fbLoadEvents();}setUnlocked(CUR_UID);rAll();}
     });
     requestAnimationFrame(()=>{const el=g("editUN");if(el)el.focus();});
     return;
