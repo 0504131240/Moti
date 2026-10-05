@@ -79,12 +79,16 @@ function fbLoadEvents(){
     }
   }).catch(e=>console.warn('FB evt load:',e));
 }
+// True on a browser that has never stored a user list (new device / incognito):
+// the default "משתמש 1" is only a placeholder until the cloud user list arrives.
+let USERS_FRESH=false;
 function loadUsers(){
-  try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS=[{id:'u1',name:'משתמש 1'}];saveUsers();}}catch{USERS=[{id:'u1',name:'משתמש 1'}];}
+  try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS_FRESH=true;USERS=[{id:'u1',name:'משתמש 1'}];}}catch{USERS_FRESH=true;USERS=[{id:'u1',name:'משתמש 1'}];}
   try{CUR_UID=localStorage.getItem('bdg_cur_user')||'u1';}catch{CUR_UID='u1';}
   if(!USERS.find(u=>u.id===CUR_UID)){CUR_UID=USERS[0]?.id||'u1';}
 }
 function saveUsers(){
+  USERS_FRESH=false;
   try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
   try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
   fbSaveUsers();
@@ -98,16 +102,29 @@ function fbLoadUsers(){
   if(!db||!_getDoc||!_doc)return;
   _getDoc(_doc(db,'budget','_users')).then(snap=>{
     const fbUsers=snap.exists()?(snap.data().users||[]):[];
-    let changed=false;
+    if(USERS_FRESH&&fbUsers.length){
+      // New device: adopt the cloud users instead of the local placeholder,
+      // and never push the placeholder back over the real names.
+      USERS=fbUsers.map(u=>({...u}));
+      if(!USERS.find(u=>u.id===CUR_UID))CUR_UID=USERS[0].id;
+      USERS_FRESH=false;
+      try{localStorage.setItem('bdg_users',JSON.stringify(USERS));localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
+      reloadCurUser();
+      if(USERS.length>1)rPickUser();else rLockScreen();
+      return;
+    }
+    let changed=false,missing=false;
     fbUsers.forEach(fu=>{
       const local=USERS.find(u=>u.id===fu.id);
-      if(!local){USERS.push(fu);changed=true;}
+      if(!local){USERS.push({...fu});changed=true;}
       else{
-        if(fu.pin&&!local.pin){local.pin=fu.pin;changed=true;}
-        if(fu.name&&fu.name!==local.name&&!local.name){local.name=fu.name;changed=true;}
+        // Cloud holds the last saved name/password from any device
+        if(fu.name&&fu.name!==local.name){local.name=fu.name;changed=true;}
+        if((fu.pin||'')!==(local.pin||'')){if(fu.pin)local.pin=fu.pin;else delete local.pin;changed=true;}
       }
     });
-    fbSaveUsers();
+    USERS.forEach(u=>{if(!fbUsers.find(f=>f.id===u.id))missing=true;});
+    if(missing||!snap.exists())fbSaveUsers();
     if(changed){
       try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
       rHdr();
@@ -116,6 +133,10 @@ function fbLoadUsers(){
     const cur=USERS.find(u=>u.id===CUR_UID);
     if(cur?.pin&&!isUnlocked(CUR_UID)&&!g('lockPin'))rLockScreen();
   }).catch(e=>console.warn('FB users load:',e));
+}
+function reloadCurUser(){
+  ld();loadEvents();
+  if(db){fbListen(S.year);fbLoadBudgets();fbLoadEvents();}
 }
 function fbSave(){
   if(!db||!_setDoc||!_doc)return;
@@ -1016,7 +1037,7 @@ function rEditMod(){
 }
 
 function isUnlocked(uid){try{return!!localStorage.getItem('bdg_unlocked_'+(uid||CUR_UID));}catch{return false;}}
-function setUnlocked(uid){try{localStorage.setItem('bdg_unlocked_'+(uid||CUR_UID),'1');}catch{}}
+function setUnlocked(uid){GATE=false;try{localStorage.setItem('bdg_unlocked_'+(uid||CUR_UID),'1');}catch{}}
 
 function canUseBiometric(){return!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);}
 function hasBiometric(uid){try{return!!localStorage.getItem('bdg_cred_'+(uid||CUR_UID));}catch{return false;}}
@@ -1054,9 +1075,24 @@ async function authBiometric(uid,onOk,onFail){
   }catch(e){console.warn('authBio:',e);onFail&&onFail();}
 }
 
+function rPickUser(){
+  GATE=true;
+  const cnt=g('cnt');
+  cnt.innerHTML=`<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 24px">
+    <div style="font-size:20px;font-weight:800;color:#1e293b;margin-bottom:8px">בחר משתמש</div>
+    ${USERS.map(u=>`<button class="pickU" data-uid="${u.id}" style="width:100%;max-width:260px;padding:13px;border-radius:12px;border:2px solid #c7d2fe;background:#eef2ff;color:#4338ca;font-weight:800;font-size:15px;cursor:pointer">${u.name}${u.pin?' &#128274;':''}</button>`).join('')}
+  </div>`;
+  document.querySelectorAll('.pickU').forEach(b=>b.onclick=()=>{
+    CUR_UID=b.dataset.uid;
+    try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
+    GATE=false;reloadCurUser();rLockScreen();
+  });
+}
+
 function rLockScreen(showPin=false){
   const u=USERS.find(u=>u.id===CUR_UID);
-  if(!u?.pin||isUnlocked(CUR_UID)){rAll();return;}
+  if(!u?.pin||isUnlocked(CUR_UID)){GATE=false;rAll();return;}
+  GATE=true;
   const cnt=g('cnt');
   const useBio=canUseBiometric()&&hasBiometric(CUR_UID);
   const pinMode=showPin||!useBio;
@@ -1601,7 +1637,9 @@ function rSearch(){
   requestAnimationFrame(()=>{if(inp)inp.focus();});
 }
 
-function rAll(){rHdr();rTlb();rCnt();}
+// GATE: lock/user-pick screen is showing — background cloud updates must not render data over it
+let GATE=false;
+function rAll(){if(GATE)return;rHdr();rTlb();rCnt();}
 
 const cntEl=document.getElementById("cnt");
 cntEl.addEventListener("touchstart",e=>{touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;touchStartTarget=e.target;},{passive:true});
