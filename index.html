@@ -1113,7 +1113,7 @@ function rLockScreen(showPin=false){
     ${!pinMode?`<button id="lockPinSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;text-decoration:underline">השתמש בסיסמה במקום</button>`:''}
     ${USERS.length>1?`<button id="lockSwitch" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;margin-top:4px;text-decoration:underline">כניסה עם משתמש אחר</button>`:''}
   </div>`;
-  if(USERS.length>1&&g('lockSwitch'))g('lockSwitch').onclick=()=>rUserMod();
+  if(USERS.length>1&&g('lockSwitch'))g('lockSwitch').onclick=()=>rPickUser();
   if(pinMode){
     const tryPin=()=>{
       if(g('lockPin').value===u.pin){setUnlocked(CUR_UID);rAll();}
