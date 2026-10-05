@@ -82,6 +82,7 @@ function fbLoadEvents(){
 // True on a browser that has never stored a user list (new device / incognito):
 // the default "משתמש 1" is only a placeholder until the cloud user list arrives.
 let USERS_FRESH=false;
+const DEF_UNAME='משתמש 1';
 function loadUsers(){
   try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS_FRESH=true;USERS=[{id:'u1',name:'משתמש 1'}];}}catch{USERS_FRESH=true;USERS=[{id:'u1',name:'משתמש 1'}];}
   try{CUR_UID=localStorage.getItem('bdg_cur_user')||'u1';}catch{CUR_UID='u1';}
@@ -118,8 +119,11 @@ function fbLoadUsers(){
       const local=USERS.find(u=>u.id===fu.id);
       if(!local){USERS.push({...fu});changed=true;}
       else{
-        // Cloud holds the last saved name/password from any device
-        if(fu.name&&fu.name!==local.name){local.name=fu.name;changed=true;}
+        // Cloud holds the last saved name/password from any device — except the
+        // "משתמש 1" placeholder that older versions pushed over real names:
+        // then the real local name wins and is written back to the cloud.
+        if(fu.name===DEF_UNAME&&local.name&&local.name!==DEF_UNAME)missing=true;
+        else if(fu.name&&fu.name!==local.name){local.name=fu.name;changed=true;}
         if((fu.pin||'')!==(local.pin||'')){if(fu.pin)local.pin=fu.pin;else delete local.pin;changed=true;}
       }
     });
@@ -131,8 +135,8 @@ function fbLoadUsers(){
       if(g('uO'))rUserMod();
     }
     const cur=USERS.find(u=>u.id===CUR_UID);
-    if(cur?.pin&&!isUnlocked(CUR_UID)&&!g('lockPin'))rLockScreen();
-  }).catch(e=>console.warn('FB users load:',e));
+    if(USERS_FRESH||(cur?.pin&&!isUnlocked(CUR_UID)&&!g('lockPin')))rLockScreen();
+  }).catch(e=>{console.warn('FB users load:',e);if(USERS_FRESH)rLockScreen();});
 }
 function reloadCurUser(){
   ld();loadEvents();
@@ -1683,7 +1687,10 @@ window.rSearch=rSearch;
 loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();loadEvents();
 // Re-distribute entries to correct cycle buckets on every startup
 {const start=parseInt(getCfg().monthStart)||1;if(start>1){const nd=migrateToStartDay(S.mData,S.cats,start);if(JSON.stringify(nd)!==JSON.stringify(S.mData)){S.mData=nd;sv();}}}
-rLockScreen();
+// New browser: wait for the cloud user list rather than showing the placeholder user
+if(USERS_FRESH){GATE=true;g('cnt').innerHTML='<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:15px">טוען משתמשים…</div>';
+  setTimeout(()=>{if(USERS_FRESH&&GATE&&!g('lockPin'))rLockScreen();},8000);}
+else rLockScreen();
 
 // Load Firebase asynchronously in background — app works even if this fails
 (async()=>{
@@ -1701,6 +1708,7 @@ rLockScreen();
   }catch(e){
     console.warn('Firebase unavailable:',e);
     setSyncDot(false);
+    if(USERS_FRESH)rLockScreen();
   }
 })();
 </script>
