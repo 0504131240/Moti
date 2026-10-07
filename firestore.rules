@@ -1,0 +1,32 @@
+rules_version = '2';
+// Paste into Firebase console → Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function me() { return request.auth.token.email.lower(); }
+    function isMember(pid) {
+      return signedIn() && me() in get(/databases/$(database)/documents/profiles/$(pid)).data.emails;
+    }
+
+    // A profile is visible/editable only by the emails listed on it
+    match /profiles/{pid} {
+      allow read: if signedIn() && me() in resource.data.emails;
+      allow create: if signedIn() && request.resource.data.emails == [me()];
+      allow update: if signedIn() && me() in resource.data.emails
+                    && request.resource.data.emails.size() > 0;
+      allow delete: if false;
+
+      match /data/{docId} {
+        allow read, write: if isMember(pid);
+      }
+    }
+
+    // Old data from before login. Readable by signed-in users only so profiles
+    // can be moved over; never writable. Once every profile has been moved,
+    // change "signedIn()" below to "false" to close it completely.
+    match /budget/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

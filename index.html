@@ -51,7 +51,12 @@ th{padding:10px 8px;color:#64748b;font-weight:600;text-align:center;font-size:12
 <script type="module">
 // Firebase loaded asynchronously so app always renders even if Firebase fails
 const FB_CFG={apiKey:"AIzaSyDU4O_IGPDLc7VkHR5ZvRbLzU6HKSa1C_E",authDomain:"moti1-848e7.firebaseapp.com",projectId:"moti1-848e7",storageBucket:"moti1-848e7.firebasestorage.app",messagingSenderId:"177637818983",appId:"1:177637818983:web:4830fff93f2dfa6746cac2"};
-let db=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null,_getDoc=null;
+// db is set only once a Google account is signed in and its profiles are loaded;
+// fdb is the Firestore handle itself. Every profile's data lives under
+// profiles/{id}/data/*, readable only by the emails listed on the profile.
+let db=null,fdb=null,auth=null,AUTH_USER=null,unsubFire=null,_doc=null,_setDoc=null,_onSnapshot=null,_getDoc=null,_F=null,_A=null;
+function pDoc(name,pid){return _doc(fdb,'profiles',pid||CUR_UID,'data',name);}
+function myEmail(){return(AUTH_USER?.email||'').toLowerCase();}
 let USERS=[],CUR_UID='u1';
 let EVENTS=[];
 function loadEvents(){try{EVENTS=JSON.parse(localStorage.getItem('bdg_evt_'+CUR_UID)||'[]');}catch{EVENTS=[];}}
@@ -61,11 +66,11 @@ function saveEvents(){
 }
 function fbSaveEvents(){
   if(!db||!_setDoc||!_doc)return;
-  _setDoc(_doc(db,'budget','_evt_'+CUR_UID),{events:EVENTS}).catch(e=>console.warn('FB evt save:',e));
+  _setDoc(pDoc('evt'),{events:EVENTS}).catch(e=>console.warn('FB evt save:',e));
 }
 function fbLoadEvents(){
   if(!db||!_getDoc||!_doc)return;
-  _getDoc(_doc(db,'budget','_evt_'+CUR_UID)).then(snap=>{
+  _getDoc(pDoc('evt')).then(snap=>{
     if(!snap.exists())return;
     const fbEvts=snap.data().events||[];
     // Merge: add any event from Firebase that isn't in local storage
@@ -79,64 +84,41 @@ function fbLoadEvents(){
     }
   }).catch(e=>console.warn('FB evt load:',e));
 }
-// True on a browser that has never stored a user list (new device / incognito):
-// the default "משתמש 1" is only a placeholder until the cloud user list arrives.
-let USERS_FRESH=false;
-const DEF_UNAME='משתמש 1';
+// USERS = the profiles the signed-in Google account may access (cached for offline start)
 function loadUsers(){
-  try{const u=localStorage.getItem('bdg_users');if(u){USERS=JSON.parse(u);}else{USERS_FRESH=true;USERS=[{id:'u1',name:'משתמש 1'}];}}catch{USERS_FRESH=true;USERS=[{id:'u1',name:'משתמש 1'}];}
-  try{CUR_UID=localStorage.getItem('bdg_cur_user')||'u1';}catch{CUR_UID='u1';}
-  if(!USERS.find(u=>u.id===CUR_UID)){CUR_UID=USERS[0]?.id||'u1';}
+  try{USERS=JSON.parse(localStorage.getItem('bdg_profiles')||'[]');}catch{USERS=[];}
+  try{CUR_UID=localStorage.getItem('bdg_cur_user')||'';}catch{CUR_UID='';}
+  if(!USERS.find(u=>u.id===CUR_UID))CUR_UID=USERS[0]?.id||'u1';
 }
 function saveUsers(){
-  USERS_FRESH=false;
-  try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
+  try{localStorage.setItem('bdg_profiles',JSON.stringify(USERS));}catch{}
   try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
   fbSaveUsers();
 }
-
+function profData(u){const d={name:u.name,emails:u.emails||[myEmail()]};if(u.pin)d.pin=u.pin;return d;}
 function fbSaveUsers(){
-  if(!db||!_setDoc||!_doc)return;
-  _setDoc(_doc(db,'budget','_users'),{users:USERS}).catch(e=>console.warn('FB users save:',e));
+  if(!db)return;
+  USERS.forEach(u=>_setDoc(_doc(fdb,'profiles',u.id),profData(u)).catch(e=>console.warn('FB profile save:',e)));
 }
-function fbLoadUsers(){
-  if(!db||!_getDoc||!_doc)return;
-  _getDoc(_doc(db,'budget','_users')).then(snap=>{
-    const fbUsers=snap.exists()?(snap.data().users||[]):[];
-    if(USERS_FRESH&&fbUsers.length){
-      // New device: adopt the cloud users instead of the local placeholder,
-      // and never push the placeholder back over the real names.
-      USERS=fbUsers.map(u=>({...u}));
-      if(!USERS.find(u=>u.id===CUR_UID))CUR_UID=USERS[0].id;
-      USERS_FRESH=false;
-      try{localStorage.setItem('bdg_users',JSON.stringify(USERS));localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
-      reloadCurUser();
-      if(USERS.length>1)rPickUser();else rLockScreen();
-      return;
-    }
-    let changed=false,missing=false;
-    fbUsers.forEach(fu=>{
-      const local=USERS.find(u=>u.id===fu.id);
-      if(!local){USERS.push({...fu});changed=true;}
-      else{
-        // Cloud holds the last saved name/password from any device — except the
-        // "משתמש 1" placeholder that older versions pushed over real names:
-        // then the real local name wins and is written back to the cloud.
-        if(fu.name===DEF_UNAME&&local.name&&local.name!==DEF_UNAME)missing=true;
-        else if(fu.name&&fu.name!==local.name){local.name=fu.name;changed=true;}
-        if((fu.pin||'')!==(local.pin||'')){if(fu.pin)local.pin=fu.pin;else delete local.pin;changed=true;}
-      }
-    });
-    USERS.forEach(u=>{if(!fbUsers.find(f=>f.id===u.id))missing=true;});
-    if(missing||!snap.exists())fbSaveUsers();
-    if(changed){
-      try{localStorage.setItem('bdg_users',JSON.stringify(USERS));}catch{}
-      rHdr();
-      if(g('uO'))rUserMod();
-    }
-    const cur=USERS.find(u=>u.id===CUR_UID);
-    if(USERS_FRESH||(cur?.pin&&!isUnlocked(CUR_UID)&&!g('lockPin')))rLockScreen();
-  }).catch(e=>{console.warn('FB users load:',e);if(USERS_FRESH)rLockScreen();});
+async function fbLoadProfiles(){
+  const email=myEmail();
+  let qs;
+  try{qs=await _F.getDocs(_F.query(_F.collection(fdb,'profiles'),_F.where('emails','array-contains',email)));}
+  catch(e){
+    console.warn('FB profiles load:',e);
+    // Offline: keep working from this account's cached profiles
+    if(USERS.length&&localStorage.getItem('bdg_auth')===email){db=fdb;reloadCurUser();rLockScreen();}
+    else rLogin('אין חיבור לשרת. נסה שוב מאוחר יותר.');
+    return;
+  }
+  const hadCur=!!USERS.find(u=>u.id===CUR_UID)&&localStorage.getItem('bdg_auth')===email;
+  USERS=qs.docs.map(d=>({id:d.id,...d.data()}));
+  try{localStorage.setItem('bdg_auth',email);localStorage.setItem('bdg_profiles',JSON.stringify(USERS));}catch{}
+  if(!USERS.length){db=null;rClaim();return;}
+  if(!USERS.find(u=>u.id===CUR_UID))CUR_UID=USERS[0].id;
+  try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
+  db=fdb;reloadCurUser();
+  if(!hadCur&&USERS.length>1)rPickUser();else rLockScreen();
 }
 function reloadCurUser(){
   ld();loadEvents();
@@ -144,12 +126,12 @@ function reloadCurUser(){
 }
 function fbSave(){
   if(!db||!_setDoc||!_doc)return;
-  _setDoc(_doc(db,'budget',CUR_UID+'_'+String(S.year)),{cats:S.cats,mData:S.mData}).catch(e=>console.warn('FB save:',e));
+  _setDoc(pDoc('y'+S.year),{cats:S.cats,mData:S.mData}).catch(e=>console.warn('FB save:',e));
 }
 function saveBudgets(){
   const bdata=S.cats.map(c=>({id:c.id,budget:c.budget||0,budgetRec:c.budgetRec||0,subs:(c.subs||[]).map(s=>({id:s.id,budget:s.budget||0}))}));
   try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
-  if(db&&_setDoc&&_doc)_setDoc(_doc(db,'budget','_bud_'+CUR_UID),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
+  if(db&&_setDoc&&_doc)_setDoc(pDoc('bud'),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
 }
 function applyBudgets(cats){
   try{
@@ -164,7 +146,7 @@ function applyBudgets(cats){
 }
 function fbLoadBudgets(){
   if(!db||!_getDoc||!_doc)return;
-  _getDoc(_doc(db,'budget','_bud_'+CUR_UID)).then(snap=>{
+  _getDoc(pDoc('bud')).then(snap=>{
     if(!snap.exists())return;
     const bdata=snap.data().b||[];
     try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
@@ -174,7 +156,7 @@ function fbLoadBudgets(){
 function fbListen(year){
   if(!db||!_onSnapshot||!_doc){return;}
   if(unsubFire)unsubFire();
-  unsubFire=_onSnapshot(_doc(db,'budget',CUR_UID+'_'+String(year)),snap=>{
+  unsubFire=_onSnapshot(pDoc('y'+year),snap=>{
     if(!snap.exists())return;
     const d=snap.data();
     S.cats=d.cats||DF.map(c=>({...c}));
@@ -1079,6 +1061,76 @@ async function authBiometric(uid,onOk,onFail){
   }catch(e){console.warn('authBio:',e);onFail&&onFail();}
 }
 
+function rCenter(html){GATE=true;g('cnt').innerHTML=`<div style="min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 24px;text-align:center">${html}</div>`;}
+const BTN='width:100%;max-width:280px;padding:13px;border-radius:12px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer';
+function rLogin(msg=''){
+  rCenter(`<div style="font-size:40px">&#128176;</div>
+    <div style="font-size:22px;font-weight:800;color:#1e293b">תקציב משפחתי</div>
+    <div style="font-size:13px;color:#64748b;margin-bottom:8px">התחבר כדי לראות את הנתונים שלך</div>
+    <button id="gLogin" style="${BTN}">התחבר עם Google</button>
+    <div id="loginErr" style="color:#ef4444;font-size:12px;max-width:280px">${msg}</div>`);
+  g('gLogin').onclick=async()=>{
+    if(!auth){g('loginErr').textContent='השרת עוד נטען, נסה שוב בעוד רגע';return;}
+    const prov=new _A.GoogleAuthProvider();prov.setCustomParameters({prompt:'select_account'});
+    try{await _A.signInWithPopup(auth,prov);}
+    catch(e){
+      if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].includes(e.code)){try{await _A.signInWithRedirect(auth,prov);return;}catch(e2){e=e2;}}
+      if(e.code==='auth/popup-closed-by-user')return;
+      g('loginErr').textContent=e.code==='auth/unauthorized-domain'?'הכתובת של האתר לא מאושרת ב-Firebase (Authorized domains)':e.code==='auth/operation-not-allowed'?'התחברות עם Google לא הופעלה ב-Firebase':'ההתחברות נכשלה: '+(e.code||e.message);
+    }
+  };
+}
+async function fbSignOut(){
+  ['bdg_auth','bdg_profiles','bdg_cur_user'].forEach(k=>{try{localStorage.removeItem(k);}catch{}});
+  try{await _A.signOut(auth);}catch{}
+  location.reload();
+}
+// Move a profile from the old open storage (budget/*) into the signed-in account
+async function claimOld(old,pin){
+  if(old.pin&&pin!==old.pin)throw new Error('pin');
+  await _setDoc(_doc(fdb,'profiles',old.id),{name:old.name,emails:[myEmail()],...(old.pin?{pin:old.pin}:{})});
+  const copy=async(from,to)=>{const sn=await _getDoc(_doc(fdb,'budget',from));if(sn.exists())await _setDoc(pDoc(to,old.id),sn.data());};
+  const jobs=[copy('_bud_'+old.id,'bud'),copy('_evt_'+old.id,'evt')];
+  for(let y=2020;y<=2035;y++)jobs.push(copy(old.id+'_'+y,'y'+y));
+  await Promise.all(jobs);
+}
+async function rClaim(fromSettings=false){
+  ih("m2","");
+  rCenter(`<div style="font-size:20px;font-weight:800;color:#1e293b">שיוך פרופיל</div>
+    <div style="font-size:13px;color:#64748b">מחובר כ-${myEmail()}</div>
+    <div id="oldList" style="width:100%;max-width:280px;display:flex;flex-direction:column;gap:8px;margin-top:8px"><div style="color:#94a3b8;font-size:13px">טוען…</div></div>
+    <div id="claimErr" style="color:#ef4444;font-size:12px;max-width:280px"></div>
+    <div style="width:100%;max-width:280px;border-top:1px solid #e2e8f0;padding-top:14px;margin-top:6px;display:flex;gap:8px">
+      <input class="inp" id="newProf" placeholder="שם לפרופיל חדש" style="flex:1;padding:9px 12px"/>
+      <button id="mkProf" style="padding:9px 14px;border-radius:10px;border:none;color:#fff;background:linear-gradient(135deg,#10b981,#059669);font-weight:700;font-size:13px;cursor:pointer">+ צור</button>
+    </div>
+    ${fromSettings?`<button id="claimBack" style="background:transparent;border:none;color:#6366f1;font-size:13px;cursor:pointer;text-decoration:underline">&#8592; חזור</button>`:''}
+    <button id="claimOut" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;text-decoration:underline">התנתק</button>`);
+  const err=t=>{g('claimErr').textContent=t;};
+  g('claimOut').onclick=fbSignOut;
+  if(g('claimBack'))g('claimBack').onclick=()=>{GATE=false;rAll();};
+  g('mkProf').onclick=async()=>{
+    const name=(g('newProf').value||'').trim();if(!name)return;
+    try{await _setDoc(_doc(fdb,'profiles','u'+Date.now()),{name,emails:[myEmail()]});await fbLoadProfiles();}
+    catch(e){err('יצירת הפרופיל נכשלה: '+(e.code||e.message));}
+  };
+  let old=[];
+  try{const sn=await _getDoc(_doc(fdb,'budget','_users'));old=sn.exists()?(sn.data().users||[]):[];}catch{}
+  old=old.filter(o=>!USERS.find(u=>u.id===o.id));
+  g('oldList').innerHTML=old.length?`<div style="font-size:12px;color:#64748b">פרופיל מהגרסה הקודמת (הזן את הסיסמה שלו):</div>`+old.map(o=>`
+    <button class="oldP" data-id="${o.id}" style="padding:11px;border-radius:12px;border:2px solid #c7d2fe;background:#eef2ff;color:#4338ca;font-weight:800;font-size:14px;cursor:pointer">${o.name}${o.pin?' &#128274;':''}</button>`).join('')
+    :`<div style="font-size:12px;color:#94a3b8">אין פרופילים ישנים לשיוך</div>`;
+  document.querySelectorAll('.oldP').forEach(b=>b.onclick=async()=>{
+    const o=old.find(x=>x.id===b.dataset.id);
+    const pin=o.pin?prompt('סיסמה של '+o.name):'';
+    if(o.pin&&pin===null)return;
+    b.disabled=true;b.textContent='מעביר נתונים…';err('');
+    try{await claimOld(o,pin);await fbLoadProfiles();}
+    catch(e){b.disabled=false;b.innerHTML=o.name+(o.pin?' &#128274;':'');
+      err(e.message==='pin'?'סיסמה שגויה':e.code==='permission-denied'?'הפרופיל הזה כבר שויך לחשבון אחר':'השיוך נכשל: '+(e.code||e.message));}
+  });
+}
+
 function rPickUser(){
   GATE=true;
   const cnt=g('cnt');
@@ -1222,12 +1274,29 @@ function rUserMod(view=null,_=null,switchId=null){
           <button class="swUser" data-uid="${u.id}" style="padding:7px 14px;border-radius:8px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:12px;font-weight:700;cursor:pointer">החלף</button>
         </div>`).join('')}`:''}
 
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:6px">&#128101; מי רואה את הפרופיל הזה</div>
+        ${(cu.emails||[]).map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:#f8faff;border:1px solid #e2e8f0;margin-bottom:6px">
+          <span style="flex:1;font-size:13px;color:#1e293b;direction:ltr;text-align:left">${e}</span>
+          ${(cu.emails||[]).length>1?`<button class="rmEm" data-em="${e}" style="background:transparent;border:none;color:#ef4444;font-size:16px;cursor:pointer">&times;</button>`:''}
+        </div>`).join('')}
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <input class="inp" id="shareEm" type="email" placeholder="כתובת Gmail לשיתוף" style="flex:1;padding:9px 12px;direction:ltr"/>
+          <button id="addEm" style="padding:9px 14px;border-radius:10px;border:none;background:#6366f1;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">שתף</button>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:18px">רק מי שמופיע כאן יכול לראות ולערוך את הנתונים</div>
+
         <div style="${others.length?'border-top:1px solid #f1f5f9;padding-top:14px;margin-top:6px':''}">
           <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:8px">&#43; משתמש חדש</div>
           <div style="display:flex;gap:8px">
             <input class="inp" id="newUN" placeholder="שם משתמש חדש" style="flex:1;padding:9px 12px"/>
             <button id="addU" style="padding:9px 14px;border-radius:10px;border:none;color:#fff;background:linear-gradient(135deg,#10b981,#059669);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">+ הוסף</button>
           </div>
+          <button id="claimBtn" style="background:transparent;border:none;color:#6366f1;font-size:12px;cursor:pointer;text-decoration:underline;margin-top:8px;padding:0">שייך פרופיל מהגרסה הקודמת</button>
+        </div>
+
+        <div style="border-top:1px solid #f1f5f9;padding-top:14px;margin-top:14px;display:flex;align-items:center;gap:8px">
+          <span style="flex:1;font-size:12px;color:#64748b;direction:ltr;text-align:left">${myEmail()}</span>
+          <button id="signOut" style="padding:7px 14px;border-radius:8px;border:1px solid #fecaca;background:#fff5f5;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer">התנתק</button>
         </div>
 
       </div>
@@ -1254,8 +1323,20 @@ function rUserMod(view=null,_=null,switchId=null){
     };
     g("addU").onclick=()=>{
       const name=(g("newUN").value||"").trim();if(!name)return;
-      USERS.push({id:'u'+Date.now(),name});saveUsers();rUserMod('edit');
+      USERS.push({id:'u'+Date.now(),name,emails:[myEmail()]});saveUsers();rUserMod('edit');
     };
+    g("addEm").onclick=()=>{
+      const em=(g("shareEm").value||"").trim().toLowerCase();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))return;
+      cu.emails=[...new Set([...(cu.emails||[myEmail()]),em])];saveUsers();rUserMod('edit');
+    };
+    document.querySelectorAll(".rmEm").forEach(b=>b.onclick=()=>{
+      if(!confirm('להסיר את '+b.dataset.em+' מהפרופיל?'))return;
+      cu.emails=(cu.emails||[]).filter(e=>e!==b.dataset.em);saveUsers();
+      if(b.dataset.em===myEmail())location.reload();else rUserMod('edit');
+    });
+    g("signOut").onclick=fbSignOut;
+    g("claimBtn").onclick=()=>rClaim(true);
     if(g("bioBtn")){
       g("bioBtn").onclick=async()=>{
         if(hasBiometric(CUR_UID)){
@@ -1687,28 +1768,32 @@ window.rSearch=rSearch;
 loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();loadEvents();
 // Re-distribute entries to correct cycle buckets on every startup
 {const start=parseInt(getCfg().monthStart)||1;if(start>1){const nd=migrateToStartDay(S.mData,S.cats,start);if(JSON.stringify(nd)!==JSON.stringify(S.mData)){S.mData=nd;sv();}}}
-// New browser: wait for the cloud user list rather than showing the placeholder user
-if(USERS_FRESH){GATE=true;g('cnt').innerHTML='<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:15px">טוען משתמשים…</div>';
-  setTimeout(()=>{if(USERS_FRESH&&GATE&&!g('lockPin'))rLockScreen();},8000);}
-else rLockScreen();
+// Start from this device's cache only if an account was signed in here before
+const CACHED_AUTH=!!localStorage.getItem('bdg_auth')&&USERS.length>0;
+if(CACHED_AUTH)rLockScreen();
+else rCenter('<div style="color:#94a3b8;font-size:15px">מתחבר…</div>');
 
-// Load Firebase asynchronously in background — app works even if this fails
+// Load Firebase asynchronously in background
 (async()=>{
   try{
     const{initializeApp}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
     const m=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    _A=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
     const fbApp=initializeApp(FB_CFG);
-    try{db=m.initializeFirestore(fbApp,{localCache:m.persistentLocalCache()});}
-    catch(e){db=m.getFirestore(fbApp);}
-    _doc=m.doc;_setDoc=m.setDoc;_onSnapshot=m.onSnapshot;_getDoc=m.getDoc;
-    fbLoadUsers();
-    fbLoadBudgets();
-    fbLoadEvents();
-    fbListen(S.year);
+    try{fdb=m.initializeFirestore(fbApp,{localCache:m.persistentLocalCache()});}
+    catch(e){fdb=m.getFirestore(fbApp);}
+    _doc=m.doc;_setDoc=m.setDoc;_onSnapshot=m.onSnapshot;_getDoc=m.getDoc;_F=m;
+    auth=_A.getAuth(fbApp);
+    _A.onAuthStateChanged(auth,user=>{
+      AUTH_USER=user;
+      if(!user){db=null;if(unsubFire){unsubFire();unsubFire=null;}rLogin();return;}
+      if(localStorage.getItem('bdg_auth')!==myEmail()){USERS=[];}
+      fbLoadProfiles();
+    });
   }catch(e){
     console.warn('Firebase unavailable:',e);
     setSyncDot(false);
-    if(USERS_FRESH)rLockScreen();
+    if(!CACHED_AUTH)rLogin('אין חיבור לשרת. נסה שוב מאוחר יותר.');
   }
 })();
 </script>
