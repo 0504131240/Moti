@@ -500,9 +500,23 @@ function rMaaser(){
     ${row('מעשר (10%)',r.due,'#1e293b',700)}
     ${row('ניתן לצדקה',r.given,'#ec4899')}
     <div style="text-align:center;background:${r.left>0?'#fdf2f8':'#f0fdf4'};border-radius:14px;padding:14px;margin:14px 0">${verdict(r.left)}</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input class="inp" id="maAmt" type="number" inputmode="decimal" min="0" placeholder="סכום שנתתי" value="${r.left>0?r.left:''}" style="flex:1;padding:10px 12px;font-size:16px;text-align:center"/>
+      <button id="maGive" style="padding:10px 16px;border-radius:10px;border:none;color:#fff;font-weight:800;font-size:14px;background:linear-gradient(135deg,#ec4899,#db2777);cursor:pointer;white-space:nowrap">&#10004; נתתי</button>
+    </div>
     <div style="font-size:12px;color:#94a3b8;text-align:center">מתחילת ${S.year}: מעשר &#8362;${fm(yDue)} · ניתן &#8362;${fm(yGiven)} · ${yLeft>0?'להשלים &#8362;'+fm(yLeft):yLeft<0?'עודף &#8362;'+fm(-yLeft):'מאוזן'}</div>
   </div></div>`);
   g("maX").onclick=()=>ih("m2","");
+  // Record a donation as an entry in this month's "צדקה" category
+  g("maGive").onclick=()=>{
+    const a=Math.round((parseFloat(g("maAmt").value)||0)*100)/100;if(a<=0){g("maAmt").focus();return;}
+    const c=charityCat();if(!c)return;
+    const p=todayPeriod(),date=(p.month===S.month&&p.year===S.year)?today():adjDate(today(),S.month,S.year);
+    if(!S.mData[S.month][c.id])S.mData[S.month][c.id]={entries:[]};
+    S.mData[S.month][c.id].entries.push({id:Date.now(),desc:'מעשר',amount:a,date,recurring:false,subCat:null});
+    sv();rMon();rMaaser();
+  };
+  g("maAmt").onkeydown=e=>{if(e.key==="Enter")g("maGive").click();};
   g("maO").onclick=e=>{if(e.target.id==="maO")ih("m2","");};
 }
 function rMon(){
