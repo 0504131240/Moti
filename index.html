@@ -71,13 +71,15 @@ function fbSaveEvents(){
 function fbLoadEvents(){
   if(!db||!_getDoc||!_doc)return;
   _getDoc(pDoc('evt')).then(snap=>{
-    if(!snap.exists())return;
-    const fbEvts=snap.data().events||[];
+    const fbEvts=snap.exists()?(snap.data().events||[]):[];
+    // Events kept only on this device (e.g. never synced) are uploaded so other devices see them
+    const localOnly=EVENTS.some(e=>!fbEvts.find(fe=>fe.id===e.id));
     // Merge: add any event from Firebase that isn't in local storage
     let changed=false;
     fbEvts.forEach(fe=>{
       if(!EVENTS.find(e=>e.id===fe.id)){EVENTS.push(fe);changed=true;}
     });
+    if(localOnly)fbSaveEvents();
     if(changed){
       try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}
       if(g('evO')||g('evdO'))rEvents();
