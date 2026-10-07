@@ -114,7 +114,7 @@ async function fbLoadProfiles(){
   const hadCur=!!USERS.find(u=>u.id===CUR_UID)&&localStorage.getItem('bdg_auth')===email;
   USERS=qs.docs.map(d=>({id:d.id,...d.data()}));
   try{localStorage.setItem('bdg_auth',email);localStorage.setItem('bdg_profiles',JSON.stringify(USERS));}catch{}
-  if(!USERS.length){db=null;rClaim();return;}
+  if(!USERS.length){db=null;rWelcome();return;}
   if(!USERS.find(u=>u.id===CUR_UID))CUR_UID=USERS[0].id;
   try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
   db=fdb;reloadCurUser();
@@ -1143,6 +1143,28 @@ async function claimOld(old,pin){
   const jobs=[copy('_bud_'+old.id,'bud'),copy('_evt_'+old.id,'evt')];
   for(let y=2020;y<=2035;y++)jobs.push(copy(old.id+'_'+y,'y'+y));
   await Promise.all(jobs);
+}
+// First sign-in with an email that has no profile: ask for a name and create one
+function rWelcome(){
+  ih("m2","");
+  const nm=(AUTH_USER?.displayName||'').split(' ')[0];
+  rCenter(`<div style="font-size:40px">&#128075;</div>
+    <div style="font-size:22px;font-weight:800;color:#1e293b">ברוך הבא!</div>
+    <div style="font-size:14px;color:#64748b">איך קוראים לך?</div>
+    <input class="inp" id="wName" value="${nm.replace(/"/g,'&quot;')}" placeholder="השם שלך" style="width:100%;max-width:280px;padding:12px;font-size:17px;text-align:center"/>
+    <button id="wGo" style="${BTN}">התחל</button>
+    <div id="wErr" style="color:#ef4444;font-size:12px;max-width:280px"></div>
+    <div style="font-size:12px;color:#94a3b8;max-width:280px;margin-top:10px">מישהו שיתף איתך פרופיל? בקש ממנו להוסיף את <b style="direction:ltr;display:inline-block">${myEmail()}</b> בהגדרות, ואז רענן את הדף</div>
+    <button id="wOut" style="background:transparent;border:none;color:#94a3b8;font-size:13px;cursor:pointer;text-decoration:underline">התנתק</button>`);
+  g('wOut').onclick=fbSignOut;
+  g('wName').onkeydown=e=>{if(e.key==='Enter')g('wGo').click();};
+  g('wGo').onclick=async()=>{
+    const name=(g('wName').value||'').trim();if(!name){g('wName').focus();return;}
+    g('wGo').disabled=true;
+    try{await _setDoc(_doc(fdb,'profiles','u'+Date.now()),{name,emails:[myEmail()]});await fbLoadProfiles();}
+    catch(e){g('wGo').disabled=false;g('wErr').textContent='יצירת הפרופיל נכשלה: '+(e.code||e.message);}
+  };
+  requestAnimationFrame(()=>{const el=g('wName');if(el&&!el.value)el.focus();});
 }
 async function rClaim(fromSettings=false){
   ih("m2","");
