@@ -95,10 +95,15 @@ function saveUsers(){
   try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
   fbSaveUsers();
 }
-function profData(u){const d={name:u.name,emails:u.emails||[myEmail()]};if(u.pin)d.pin=u.pin;return d;}
+// Fields the app owns on a profile doc; merged so server-side fields (lastMailDay) are kept
+function profData(u){
+  const d={name:u.name,emails:u.emails||[myEmail()],reminders:u.reminders||[],mailSummary:!!u.mailSummary,pin:u.pin||_F.deleteField()};
+  if(u.monthStart)d.monthStart=u.monthStart;
+  return d;
+}
 function fbSaveUsers(){
   if(!db)return;
-  USERS.forEach(u=>_setDoc(_doc(fdb,'profiles',u.id),profData(u)).catch(e=>console.warn('FB profile save:',e)));
+  USERS.forEach(u=>_setDoc(_doc(fdb,'profiles',u.id),profData(u),{merge:true}).catch(e=>console.warn('FB profile save:',e)));
 }
 async function fbLoadProfiles(){
   const email=myEmail();
@@ -118,6 +123,8 @@ async function fbLoadProfiles(){
   if(!USERS.find(u=>u.id===CUR_UID))CUR_UID=USERS[0].id;
   try{localStorage.setItem('bdg_cur_user',CUR_UID);}catch{}
   db=fdb;reloadCurUser();
+  // The mail job reads the cycle start day from the profile; copy this device's setting there
+  {const cu=USERS.find(u=>u.id===CUR_UID),ms=parseInt(getCfg().monthStart)||0;if(cu&&ms>1&&cu.monthStart!==ms){cu.monthStart=ms;saveUsers();}}
   if(!hadCur&&USERS.length>1)rPickUser();else rLockScreen();
 }
 function reloadCurUser(){
@@ -1357,6 +1364,27 @@ function rUserMod(view=null,_=null,switchId=null){
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:18px">רק מי שמופיע כאן יכול לראות ולערוך את הנתונים</div>
 
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:6px">&#128231; מיילים ותזכורות</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#475569;margin-bottom:10px;cursor:pointer">
+          <input type="checkbox" id="mailSum" ${cu.mailSummary?'checked':''} style="width:18px;height:18px;accent-color:#6366f1"/>
+          סיכום חודשי במייל ביום האחרון של החודש
+        </label>
+        ${(cu.reminders||[]).map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;margin-bottom:6px">
+          <span style="font-size:12px;color:#b45309;white-space:nowrap">${r.type==='once'?fmDate(r.date)+'/'+(r.date||'').slice(2,4):'כל '+r.day+' בחודש'}</span>
+          <span style="flex:1;font-size:13px;color:#1e293b">${(r.text||'').replace(/</g,'&lt;')}</span>
+          <button class="rmRem" data-id="${r.id}" style="background:transparent;border:none;color:#ef4444;font-size:16px;cursor:pointer">&times;</button>
+        </div>`).join('')}
+        <div style="display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:12px;border:1px dashed #cbd5e1;margin-bottom:4px">
+          <input class="inp" id="remText" placeholder="תזכורת (למשל: לשלם ועד בית)" style="padding:9px 12px"/>
+          <div style="display:flex;gap:6px">
+            <select class="inp" id="remType" style="padding:8px;flex:1"><option value="monthly">כל חודש ביום</option><option value="once">בתאריך</option></select>
+            <input class="inp" id="remDay" type="number" min="1" max="31" placeholder="יום" style="width:70px;padding:8px;text-align:center"/>
+            <input class="inp" id="remDate" type="date" style="flex:1;padding:8px;display:none"/>
+            <button id="addRem" style="padding:8px 12px;border-radius:10px;border:none;background:#f59e0b;color:#fff;font-size:13px;font-weight:700;cursor:pointer">+</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:18px">נשלח בבוקר לכל המיילים שברשימה למעלה</div>
+
         <div style="${others.length?'border-top:1px solid #f1f5f9;padding-top:14px;margin-top:6px':''}">
           <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:8px">&#43; משתמש חדש</div>
           <div style="display:flex;gap:8px">
@@ -1388,7 +1416,7 @@ function rUserMod(view=null,_=null,switchId=null){
     };
     g("saveMonthStart").onclick=()=>{
       const d=Math.max(1,Math.min(28,parseInt(g("monthStartInp").value)||1));
-      saveCfg({monthStart:d});
+      saveCfg({monthStart:d});cu.monthStart=d;saveUsers();
       S.mData=migrateToStartDay(S.mData,S.cats,d);
       sv();const p=todayPeriod();S.month=p.month;S.year=p.year;
       ld();fbListen(S.year);ih("m2","");rAll();
@@ -1409,6 +1437,18 @@ function rUserMod(view=null,_=null,switchId=null){
     });
     g("signOut").onclick=fbSignOut;
     g("claimBtn").onclick=()=>rClaim(true);
+    g("mailSum").onchange=()=>{cu.mailSummary=g("mailSum").checked;saveUsers();};
+    g("remType").onchange=()=>{const once=g("remType").value==='once';g("remDay").style.display=once?'none':'';g("remDate").style.display=once?'':'none';};
+    g("addRem").onclick=()=>{
+      const text=(g("remText").value||"").trim();if(!text){g("remText").focus();return;}
+      const type=g("remType").value,r={id:Date.now(),text,type};
+      if(type==='once'){r.date=g("remDate").value;if(!r.date){g("remDate").focus();return;}}
+      else{r.day=Math.max(1,Math.min(31,parseInt(g("remDay").value)||0));if(!parseInt(g("remDay").value)){g("remDay").focus();return;}}
+      cu.reminders=[...(cu.reminders||[]),r];saveUsers();rUserMod('edit');
+    };
+    document.querySelectorAll(".rmRem").forEach(b=>b.onclick=()=>{
+      cu.reminders=(cu.reminders||[]).filter(r=>String(r.id)!==b.dataset.id);saveUsers();rUserMod('edit');
+    });
     if(g("bioBtn")){
       g("bioBtn").onclick=async()=>{
         if(hasBiometric(CUR_UID)){
