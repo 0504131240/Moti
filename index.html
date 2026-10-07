@@ -161,7 +161,7 @@ function fbListen(year){
     const d=snap.data();
     S.cats=d.cats||DF.map(c=>({...c}));
     S.mData=d.mData||iMD(S.cats);
-    eC(S.cats,S.mData);
+    eC(S.cats,S.mData);ensureCharity();
     const _start=parseInt(getCfg().monthStart)||1;
     if(_start>1){const _nd=migrateToStartDay(S.mData,S.cats,_start);if(JSON.stringify(_nd)!==JSON.stringify(S.mData)){S.mData=_nd;fbSave();}}
     applyBudgets(S.cats);
@@ -226,6 +226,14 @@ const DF=[
 let S={year:new Date().getFullYear(),month:new Date().getMonth(),view:"monthly",cats:[],mData:{},aCat:null,eCat:null,nc:{name:"",budget:"",budgetRec:"",color:"#6366f1",isRec:false},sortEnt:"date",editEntId:null,expFilter:"variable",chartIdx:0};
 let deferredPrompt=null,touchStartX=0,touchStartY=0,touchStartTarget=null;
 
+// "צדקה" is a built-in category: always present (found by flag or name), used for maaser
+function charityCat(){return S.cats.find(c=>c.builtin==='charity')||S.cats.find(c=>(c.name||'').trim()==='צדקה');}
+function ensureCharity(){
+  let c=charityCat();
+  if(!c){c={id:Math.max(0,...S.cats.map(x=>x.id))+1,name:'צדקה',color:'#ec4899'};S.cats.push(c);}
+  c.builtin='charity';
+  eC(S.cats,S.mData);
+}
 function sk(y){return"bdg_v4_"+CUR_UID+"_"+y;}
 function iMD(c){const m={};for(let i=0;i<12;i++){m[i]={income:[]};c.forEach(x=>{m[i][x.id]={entries:[]};});}return m;}
 function eC(c,m){for(let i=0;i<12;i++){if(!m[i])m[i]={income:[]};if(!m[i].income)m[i].income=[];c.forEach(x=>{if(!m[i][x.id])m[i][x.id]={entries:[]};});}return m;}
@@ -253,6 +261,7 @@ function ld(){
       if(!inh){S.cats=DF.map(c=>({...c}));S.mData=iMD(S.cats);}
     }
   }catch{S.cats=DF.map(c=>({...c}));S.mData=iMD(S.cats);}
+  ensureCharity();
   applyBudgets(S.cats);
 }
 function sv(){
@@ -473,6 +482,29 @@ function rTlb(){
 
 function rCnt(){S.view==="monthly"?rMon():rYr();}
 
+// Maaser: a tenth of the month's income, minus what was given (the "צדקה" category)
+function maaserOf(m){const inc=incT(m),due=Math.round(inc/10),given=ct(m,charityCat()?.id);return{inc,due,given,left:due-given};}
+function rMaaser(){
+  const r=maaserOf(S.month);
+  let yDue=0,yGiven=0;for(let m=0;m<12;m++){const x=maaserOf(m);yDue+=x.due;yGiven+=x.given;}
+  const yLeft=yDue-yGiven;
+  const row=(l,v,c='#1e293b',b=400)=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b;font-size:14px">${l}</span><span style="font-weight:${b};color:${c};font-size:15px">&#8362;${fm(v)}</span></div>`;
+  const verdict=(left)=>left>0?`<div style="font-size:13px;color:#db2777">נשאר להשלים</div><div style="font-size:30px;font-weight:800;color:#db2777">&#8362;${fm(left)}</div>`
+    :`<div style="font-size:13px;color:#059669">${left<0?'נתת יותר מהמעשר ב-':'המעשר הושלם'}</div><div style="font-size:30px;font-weight:800;color:#059669">${left<0?'&#8362;'+fm(-left):'&#10004;'}</div>`;
+  ih("m2",`<div class="overlay" id="maO"><div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <span style="font-size:17px;font-weight:800;color:#1e293b">&#129518; מעשר — ${moLabel(S.month)}</span>
+      <button id="maX" style="background:#f1f5f9;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#64748b">&times;</button>
+    </div>
+    ${row('הכנסות החודש',r.inc)}
+    ${row('מעשר (10%)',r.due,'#1e293b',700)}
+    ${row('ניתן לצדקה',r.given,'#ec4899')}
+    <div style="text-align:center;background:${r.left>0?'#fdf2f8':'#f0fdf4'};border-radius:14px;padding:14px;margin:14px 0">${verdict(r.left)}</div>
+    <div style="font-size:12px;color:#94a3b8;text-align:center">מתחילת ${S.year}: מעשר &#8362;${fm(yDue)} · ניתן &#8362;${fm(yGiven)} · ${yLeft>0?'להשלים &#8362;'+fm(yLeft):yLeft<0?'עודף &#8362;'+fm(-yLeft):'מאוזן'}</div>
+  </div></div>`);
+  g("maX").onclick=()=>ih("m2","");
+  g("maO").onclick=e=>{if(e.target.id==="maO")ih("m2","");};
+}
 function rMon(){
   const {month:nowM,year:nowY}=todayPeriod();
   const isNow=S.month===nowM&&S.year===nowY;
@@ -494,7 +526,10 @@ function rMon(){
   const incomeSec=`<div style="background:#f0fdf4;border-radius:14px;padding:14px 16px;margin-bottom:14px;border:1px solid #a7f3d0">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;color:#059669;font-weight:700">&#128176; הכנסות חודשיות</div>
-      <button id="addInc" style="padding:4px 10px;border-radius:8px;border:none;color:#fff;font-size:12px;background:linear-gradient(135deg,#10b981,#059669);cursor:pointer">+ הוסף</button>
+      <div style="display:flex;gap:6px">
+        <button id="maaserBtn" style="padding:4px 10px;border-radius:8px;border:1px solid #f9a8d4;color:#db2777;font-size:12px;font-weight:700;background:#fdf2f8;cursor:pointer">&#129518; מעשר</button>
+        <button id="addInc" style="padding:4px 10px;border-radius:8px;border:none;color:#fff;font-size:12px;background:linear-gradient(135deg,#10b981,#059669);cursor:pointer">+ הוסף</button>
+      </div>
     </div>
     <div style="display:flex;gap:10px">
       <div style="flex:1;text-align:center"><div style="font-size:10px;color:#64748b">הכנסה</div><div style="font-size:16px;font-weight:700;color:#059669">&#8362;${fm(inc)}</div></div>
@@ -604,8 +639,9 @@ function rMon(){
   requestAnimationFrame(()=>{const carousel=g("chartCarousel"),track=g("chartTrack");if(carousel&&track&&track.children[S.chartIdx])carousel.style.height=track.children[S.chartIdx].scrollHeight+'px';});
   document.querySelectorAll(".oE").forEach(b=>b.onclick=()=>{S.aCat=parseInt(b.dataset.c);S.editEntId=null;rEntMod();});
   document.querySelectorAll(".eC").forEach(b=>b.onclick=e=>{e.stopPropagation();S.eCat={...S.cats.find(c=>c.id===parseInt(b.dataset.c))};rEditMod();});
-  document.querySelectorAll(".dC").forEach(b=>b.onclick=e=>{e.stopPropagation();if(confirm("למחוק?")){S.cats=S.cats.filter(c=>c.id!==parseInt(b.dataset.c));sv();rMon();}});
+  document.querySelectorAll(".dC").forEach(b=>b.onclick=e=>{e.stopPropagation();if(charityCat()?.id===parseInt(b.dataset.c)){alert('קטגוריית צדקה מובנית (משמשת לחישוב המעשר) ולא ניתן למחוק אותה');return;}if(confirm("למחוק?")){S.cats=S.cats.filter(c=>c.id!==parseInt(b.dataset.c));sv();rMon();}});
   g("addInc").onclick=()=>rIncMod();
+  g("maaserBtn").onclick=()=>rMaaser();
   g("addExpBtn").onclick=()=>rExpMod();
 }
 
