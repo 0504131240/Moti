@@ -1630,7 +1630,7 @@ function rBudgetSuggest(){
       else if(curRec>0&&avgRec<curRec*0.7){sugRec=r50(avgRec*1.15);chR=-1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
       else{nR=`ממוצע ₪${fm(Math.round(avgRec))} — מאוזן`;}
     }else if(curRec>0){sugRec=0;chR=-1;nR='ללא הוצאות קבועות ב-6 חודשים';}
-    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec};
+    return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec,varA,recA};
   });
   const totalCur=S.cats.reduce((s,c)=>s+(c.budget||0)+(c.budgetRec||0),0);
   let scaledForIncome=false;
@@ -1706,11 +1706,46 @@ function rBudgetSuggest(){
       <div style="font-size:30px;flex-shrink:0">&#128176;</div>
     </div>`:''}
     ${scaledForIncome?`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:#c2410c">&#9888; ההצעות הותאמו לשמור לפחות 20% מהכנסתך לחיסכון</div>`:''}
+    <button id="aiBS" style="width:100%;padding:11px;border-radius:12px;border:1px solid #c9d9ce;background:linear-gradient(135deg,#eef3ef,#f3f7f4);color:#3f7356;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:10px;font-family:inherit">&#10024; ניתוח AI — הצעות חכמות</button>
+    <div id="aiBox"></div>
     <div id="bsList" style="max-height:42vh;overflow-y:auto;margin-bottom:4px"></div>
     <div id="bsApply" style="border-top:1px solid #ece4d8;padding-top:12px;margin-top:8px"></div>
   </div></div>`);
   g("cBS").onclick=()=>ih("m2","");
   g("bsO").onclick=e=>{if(e.target.id==="bsO")ih("m2","");};
+  // AI analysis: send a numeric summary to /api/suggest and show its budgets in the same list
+  g("aiBS").onclick=async()=>{
+    const box=g("aiBox"),btn=g("aiBS");
+    if(!auth?.currentUser){box.innerHTML='<div style="color:#cf5a3e;font-size:12px;margin-bottom:8px">צריך להתחבר כדי להשתמש בניתוח AI</div>';return;}
+    btn.disabled=true;btn.innerHTML='&#10024; מנתח… (עד חצי דקה)';box.innerHTML='';
+    try{
+      const token=await auth.currentUser.getIdToken();
+      const body={months:months.map(mo=>({label:MO[mo.m]+' '+mo.y,income:Math.round(mo.inc)})),
+        cats:sugs.map(x=>({id:x.cat.id,name:x.cat.name,budget:x.curVar,budgetRec:x.curRec,variable:x.varA.map(Math.round),recurring:x.recA.map(Math.round)}))};
+      const r=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});
+      const out=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(out.error||'הניתוח נכשל');
+      // Only the AI's suggestions count from here: anything it left out stays as is
+      sugs.forEach(x=>{x.sugVar=x.curVar;x.sugRec=x.curRec;x.chV=0;x.chR=0;x.nV=x.nR='ללא שינוי';});
+      (out.categories||[]).forEach(c=>{
+        const x=sugs.find(s=>s.cat.id===c.id);if(!x)return;
+        x.sugVar=c.budget;x.sugRec=c.budgetRec;
+        x.chV=Math.sign(x.sugVar-x.curVar);x.chR=Math.sign(x.sugRec-x.curRec);
+        x.nV=c.reason;x.nR=x.chR?c.reason:x.nR;
+      });
+      const esc=t=>String(t||'').replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+      box.innerHTML=(DARK?darken:(h=>h))(`<div style="background:#f3f7f4;border:1px solid #d4e4d8;border-radius:12px;padding:11px 13px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:#3f7356;margin-bottom:4px">&#10024; ניתוח AI</div>
+        <div style="font-size:13px;color:#2f2a24;line-height:1.5">${esc(out.summary)}</div>
+        ${(out.tips||[]).length?`<ul style="margin:6px 18px 0 0;font-size:12.5px;color:#5e554a;line-height:1.5">${out.tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+      </div>`);
+      btn.style.display='none';
+      doRender();
+    }catch(e){
+      btn.disabled=false;btn.innerHTML='&#10024; ניתוח AI — הצעות חכמות';
+      box.innerHTML=`<div style="color:#cf5a3e;font-size:12px;margin-bottom:8px">${String(e.message).replace(/</g,'&lt;')}</div>`;
+    }
+  };
   doRender();
 }
 
