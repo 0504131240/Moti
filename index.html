@@ -322,6 +322,19 @@ function applyToFutureYears(baseId,catId,fn){
   }
 }
 
+// Budget month a date belongs to, honoring "month starts on day N": {y, m}
+function dateBucket(ds){
+  const [y,mo,d]=ds.split('-').map(Number),st=parseInt(getCfg().monthStart)||1;
+  let m=mo-1,yy=y;if(st>1&&d<st){m--;if(m<0){m=11;yy--;}}
+  return{y:yy,m};
+}
+// The date with ds's day of month that falls in budget month (by, bm)
+function bucketDate(ds,by,bm){
+  const d=parseInt(ds.split('-')[2]),st=parseInt(getCfg().monthStart)||1;
+  const abs=by*12+bm+((st>1&&d<st)?1:0);
+  return adjDate(ds,abs%12,Math.floor(abs/12));
+}
+
 // Installment series: payments "desc (k/N)" with ids base+(k-1)*1000 in consecutive months
 function instInfo(e){
   if(!e||e.recurring)return null;
@@ -773,9 +786,12 @@ function rExpMod(){
       const inst=Math.max(1,parseInt(g("expInst").value)||1);
       const baseId=Date.now();
       const subCat=selSub||null;
+      // The entered date decides the (first) month, not the month on screen
+      const b=dateBucket(date);
+      if(b.y===S.year)S.month=b.m;
       if(isRec){
         for(let m=S.month;m<12;m++){
-          S.mData[m][selCat].entries.push({id:baseId+m*1000,desc,amount:a,date:adjDate(date,m,S.year),recurring:true,subCat});
+          S.mData[m][selCat].entries.push({id:baseId+m*1000,desc,amount:a,date:bucketDate(date,S.year,m),recurring:true,subCat});
         }
         sv();
         applyToFutureYears(baseId,selCat,(entries,relId,m,fy)=>{
@@ -785,9 +801,8 @@ function rExpMod(){
       } else if(inst>1){
         const perMonth=Math.round(a/inst*100)/100,later={};
         for(let i=0;i<inst;i++){
-          const tMonth=(S.month+i)%12;
-          const tYear=S.year+Math.floor((S.month+i)/12);
-          const entryDate=adjDate(date,tMonth,tYear);
+          const abs=b.y*12+b.m+i,tMonth=abs%12,tYear=Math.floor(abs/12);
+          const entryDate=bucketDate(date,tYear,tMonth);
           const entryDesc=desc?(desc+' ('+(i+1)+'/'+inst+')'):(''+(i+1)+'/'+inst);
           if(tYear===S.year){
             if(!S.mData[tMonth])S.mData[tMonth]={};
@@ -802,9 +817,15 @@ function rExpMod(){
           later[y].forEach(({m,e})=>{if(!d.mData[m])d.mData[m]={income:[]};if(!d.mData[m][selCat])d.mData[m][selCat]={entries:[]};d.mData[m][selCat].entries.push(e);});
           if(!d.cats.find(c=>c.id===selCat)){const c=S.cats.find(c=>c.id===selCat);if(c)d.cats.push({...c});}
         }));
-      } else {
-        S.mData[S.month][selCat].entries.push({id:baseId,desc,amount:a,date,recurring:false,subCat});
+      } else if(b.y===S.year){
+        S.mData[b.m][selCat].entries.push({id:baseId,desc,amount:a,date,recurring:false,subCat});
         sv();
+      } else {
+        editYear(b.y,d=>{
+          if(!d.mData[b.m])d.mData[b.m]={income:[]};if(!d.mData[b.m][selCat])d.mData[b.m][selCat]={entries:[]};
+          d.mData[b.m][selCat].entries.push({id:baseId,desc,amount:a,date,recurring:false,subCat});
+          if(!d.cats.find(c=>c.id===selCat)){const c=S.cats.find(c=>c.id===selCat);if(c)d.cats.push({...c});}
+        });
       }
       ih("m1","");rMon();
     };
@@ -982,7 +1003,7 @@ function rEntMod(){
       });
     }else if(instInfo(entry)){
       const n=instInfo(entry).n,b=instBase(desc);
-      forInstSeries(entry,S.aCat,(x,k,y,m)=>({...x,desc:instDesc(b,k+1,n),amount:a,date:adjDate(date,m,y),subCat}));
+      forInstSeries(entry,S.aCat,(x,k,y,m)=>({...x,desc:instDesc(b,k+1,n),amount:a,date:bucketDate(date,y,m),subCat}));
     }else{
       S.mData[S.month][S.aCat].entries=S.mData[S.month][S.aCat].entries.map(e=>e.id===id?{...e,desc,amount:a,date,subCat}:e);
       sv();
