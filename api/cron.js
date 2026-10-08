@@ -7,9 +7,11 @@
 //   GMAIL_USER                Gmail address the mails are sent from
 //   GMAIL_APP_PASSWORD        Google "app password" for that address
 //   CRON_SECRET               any random string; Vercel sends it with cron calls
+//   ANTHROPIC_API_KEY         for the Claude analysis in the weekly summary (optional)
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const N = require('./_lib/notify');
+const { askClaude } = require('./_lib/ai');
 
 function db() {
   if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
@@ -47,6 +49,20 @@ module.exports = async (req, res) => {
         const s = N.summarize(yDoc.exists ? yDoc.data() : null, eDoc.exists ? eDoc.data().events : [], cycle);
         const label = N.monthLabel(cycle.month, p.monthStart);
         await mail.sendMail({ from, to, subject: `📊 סיכום חודש ${label} ${cycle.year}`, html: N.summaryHtml(p.name, label, cycle.year, s) });
+        sent++;
+      }
+      // Weekly summary with Claude's analysis, on Sundays
+      if (p.mailWeekly && N.isSunday(t)) {
+        const last = N.addDays(t, -1);
+        const years = [...new Set([N.addDays(t, -7).y, last.y, N.bucketOf(last, p.monthStart).y])];
+        const docs = {};
+        await Promise.all(years.map(async y => { const s = await doc.ref.collection('data').doc('y' + y).get(); docs[y] = s.exists ? s.data() : null; }));
+        const w = N.weeklyData(docs, t, p.monthStart);
+        let ai = null;
+        if (process.env.ANTHROPIC_API_KEY) {
+          try { ai = await askClaude(N.weeklyPrompt(w), N.AI_WEEKLY_SCHEMA, 4000); } catch (e) { console.error('weekly ai', doc.id, e.message); }
+        }
+        await mail.sendMail({ from, to, subject: `📅 סיכום שבועי: ₪${Math.round(w.weekTotal).toLocaleString('he-IL')} השבוע`, html: N.weeklyHtml(p.name, w, ai) });
         sent++;
       }
       if (sent) await doc.ref.update({ lastMailDay: t.str });
