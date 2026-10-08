@@ -75,7 +75,7 @@ function summarize(yearDoc, evts, cycle) {
 
 const box = 'font-family:Arial,sans-serif;direction:rtl;text-align:right;max-width:560px;margin:auto;color:#1e293b';
 
-function summaryHtml(name, label, year, s) {
+function summaryHtml(name, label, year, s, ai) {
   const tr = s.rows.filter(r => r.spent > 0 || r.budget > 0).map(r => {
     const over = r.budget > 0 && r.spent > r.budget;
     return `<tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9">${esc(r.name)}</td>
@@ -94,6 +94,7 @@ function summaryHtml(name, label, year, s) {
       <td style="background:#eef2ff;padding:10px;border-radius:10px"><div style="font-size:12px;color:#64748b">הוצאות</div><div style="font-size:18px;font-weight:700;color:#6366f1">₪${fm(s.expenses)}</div></td>
       <td style="background:${s.balance >= 0 ? '#f0fdf4' : '#fef2f2'};padding:10px;border-radius:10px"><div style="font-size:12px;color:#64748b">מאזן</div><div style="font-size:18px;font-weight:700;color:${s.balance >= 0 ? '#059669' : '#ef4444'}">${s.balance < 0 ? '-' : ''}₪${fm(Math.abs(s.balance))}</div></td>
     </tr></table>
+    ${aiBoxHtml(ai)}
     ${tr ? `<table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="color:#64748b;font-size:12px"><th style="text-align:right;padding:6px 8px">קטגוריה</th><th style="text-align:right;padding:6px 8px">הוצאה</th><th style="text-align:right;padding:6px 8px">תקציב</th></tr>${tr}</table>` : ''}
     ${maaserLine}
   </div>`;
@@ -105,86 +106,34 @@ function remindersHtml(name, list) {
     <ul style="padding-right:18px;font-size:16px">${list.map(r => `<li style="margin-bottom:6px">${esc(r.text)}</li>`).join('')}</ul></div>`;
 }
 
-// ---------- Weekly summary (sent on Sundays) ----------
-const addDays = (t, n) => { const d = new Date(Date.UTC(t.y, t.m, t.d + n)); return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), str: ymd(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) }; };
-const isSunday = t => new Date(Date.UTC(t.y, t.m, t.d)).getUTCDay() === 0;
-
-// Budget month a date belongs to (same rule as the app's "month starts on day N")
-function bucketOf(t, monthStart) {
-  const s = parseInt(monthStart) || 1;
-  if (s > 1 && t.d < s) return t.m === 0 ? { y: t.y - 1, m: 11 } : { y: t.y, m: t.m - 1 };
-  return { y: t.y, m: t.m };
-}
-
-// The 7 days that ended yesterday, plus the budget month so far.
-// yearDocs: { [year]: {cats, mData} } for every year the week or month touches.
-function weeklyData(yearDocs, t, monthStart) {
-  const from = addDays(t, -7).str, to = addDays(t, -1).str, last = addDays(t, -1);
-  const b = bucketOf(last, monthStart), doc = yearDocs[b.y] || {}, cats = doc.cats || [];
-  const catName = {}; Object.values(yearDocs).forEach(d => (d?.cats || []).forEach(c => { catName[c.id] = c.name; }));
-  // this week: every entry dated inside the range, in any month of any loaded year
-  const week = {}, items = [];
-  Object.values(yearDocs).forEach(d => Object.values(d?.mData || {}).forEach(md => Object.entries(md || {}).forEach(([cid, v]) => {
-    if (cid === 'income' || !v?.entries) return;
-    v.entries.forEach(e => {
-      if (!e.date || e.date < from || e.date > to) return;
-      week[cid] = (week[cid] || 0) + num(e.amount);
-      items.push({ desc: String(e.desc || '').slice(0, 40), amount: num(e.amount), category: catName[cid] || '' });
-    });
-  })));
-  const md = doc.mData?.[b.m] || doc.mData?.[String(b.m)] || {};
-  const month = cats.map(c => ({
-    name: c.name,
-    spent: (md[c.id]?.entries || []).filter(e => !e.date || e.date <= to).reduce((s2, e) => s2 + num(e.amount), 0),
-    budget: num(c.budget) + num(c.budgetRec),
-    week: week[c.id] || 0,
-  }));
-  return {
-    from, to,
-    monthLabel: monthLabel(b.m, monthStart), year: b.y,
-    weekTotal: Object.values(week).reduce((s2, v) => s2 + v, 0),
-    top: items.sort((x, y) => y.amount - x.amount).slice(0, 5),
-    month,
-    income: (md.income || []).reduce((s2, e) => s2 + num(e.amount), 0),
-  };
-}
-
-const AI_WEEKLY_SCHEMA = {
+// ---------- Claude analysis for the monthly summary ----------
+const AI_SUMMARY_SCHEMA = {
   type: 'object',
   properties: { summary: { type: 'string' }, tips: { type: 'array', items: { type: 'string' } } },
   required: ['summary', 'tips'],
   additionalProperties: false,
 };
 
-function weeklyPrompt(w) {
-  return `אתה יועץ כלכלי למשפחה ישראלית. הנה סיכום השבוע האחרון (${w.from} עד ${w.to}) ומצב חודש התקציב ${w.monthLabel} עד עכשיו:
-${JSON.stringify({ weekTotal: Math.round(w.weekTotal), biggestExpensesThisWeek: w.top, monthIncomeSoFar: Math.round(w.income), categories: w.month.map(c => ({ name: c.name, spentThisMonth: Math.round(c.spent), monthlyBudget: c.budget, spentThisWeek: Math.round(c.week) })) })}
-כתוב ב-summary שניים-שלושה משפטים על השבוע ועל הקצב ביחס לתקציב החודש, וב-tips עד 3 הצעות מעשיות וקצרות לשיפור לשבוע הבא. קטגוריית "צדקה" היא נתינה מתוך עיקרון, אל תציע לקצץ בה. בעברית, בטון חם ולא שיפוטי.`;
+function monthlyPrompt(label, year, s) {
+  const data = {
+    income: Math.round(s.income), expenses: Math.round(s.expenses), balance: Math.round(s.balance),
+    categories: s.rows.filter(r => r.spent > 0 || r.budget > 0).map(r => ({ name: r.name, spent: Math.round(r.spent), budget: r.budget })),
+    events: s.events.map(e => ({ name: e.name, spent: Math.round(e.spent) })),
+    maaser: s.maaser,
+  };
+  return `אתה יועץ כלכלי למשפחה ישראלית. הנה סיכום חודש ${label} ${year} שהסתיים (הכנסות, הוצאות לפי קטגוריה מול התקציב, הוצאות אירועים ומעשר):
+${JSON.stringify(data)}
+כתוב ב-summary שניים-שלושה משפטים על החודש: מה הלך טוב, איפה הייתה חריגה ומה המשמעות. ב-tips כתוב עד 3 הצעות מעשיות וקצרות לשיפור בחודש הבא. קטגוריית "צדקה" היא נתינה מתוך עיקרון, אל תציע לקצץ בה. בעברית, בטון חם ולא שיפוטי.`;
 }
 
-function weeklyHtml(name, w, ai) {
-  const fmd = s2 => s2.slice(8, 10) + '/' + s2.slice(5, 7);
-  const rows = w.month.filter(c => c.spent > 0 || c.budget > 0).map(c => {
-    const p = c.budget > 0 ? Math.round(c.spent / c.budget * 100) : null;
-    const col = p === null ? '#2f2a24' : p >= 100 ? '#d1453b' : p >= 80 ? '#e48a2f' : '#2f2a24';
-    return `<tr><td style="padding:6px 8px;border-bottom:1px solid #f0e8dc">${esc(c.name)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #f0e8dc;color:#7d7265">${c.week ? '₪' + fm(c.week) : '—'}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #f0e8dc;color:${col};font-weight:${p >= 80 ? 700 : 400}">₪${fm(c.spent)}${c.budget ? ' / ₪' + fm(c.budget) : ''}${p !== null ? ` (${p}%)` : ''}</td></tr>`;
-  }).join('');
-  const aiBox = ai ? `<div style="background:#f3f7f4;border:1px solid #d4e4d8;border-radius:12px;padding:12px 14px;margin:16px 0">
-      <div style="font-weight:700;color:#3f7356;margin-bottom:6px">✨ ניתוח Claude</div>
-      <div style="line-height:1.6">${esc(ai.summary)}</div>
-      ${(ai.tips || []).length ? `<ul style="padding-right:18px;margin:8px 0 0;line-height:1.6;color:#5e554a">${ai.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-    </div>` : '';
-  return `<div style="${box}">
-    <h2 style="margin:0 0 4px">סיכום שבועי ${fmd(w.from)}–${fmd(w.to)}</h2>
-    <div style="color:#64748b;margin-bottom:14px">שלום ${esc(name)},</div>
-    <div style="background:#faf6ef;border-radius:12px;padding:12px 14px"><div style="font-size:12px;color:#7d7265">הוצאות השבוע</div><div style="font-size:24px;font-weight:700">₪${fm(w.weekTotal)}</div></div>
-    ${aiBox}
-    ${rows ? `<div style="font-weight:700;margin:14px 0 6px">${esc(w.monthLabel)} עד עכשיו</div>
-    <table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="color:#7d7265;font-size:12px"><th style="text-align:right;padding:6px 8px">קטגוריה</th><th style="text-align:right;padding:6px 8px">השבוע</th><th style="text-align:right;padding:6px 8px">החודש / תקציב</th></tr>${rows}</table>` : ''}
+function aiBoxHtml(ai) {
+  if (!ai) return '';
+  return `<div style="background:#f3f7f4;border:1px solid #d4e4d8;border-radius:12px;padding:12px 14px;margin:16px 0">
+    <div style="font-weight:700;color:#3f7356;margin-bottom:6px">✨ ניתוח Claude</div>
+    <div style="line-height:1.6">${esc(ai.summary)}</div>
+    ${(ai.tips || []).length ? `<ul style="padding-right:18px;margin:8px 0 0;line-height:1.6;color:#5e554a">${ai.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
   </div>`;
 }
 
 module.exports = { MO, israelToday, dueReminders, endingCycle, monthLabel, summarize, summaryHtml, remindersHtml,
-  addDays, isSunday, bucketOf, weeklyData, weeklyPrompt, weeklyHtml, AI_WEEKLY_SCHEMA };
+  monthlyPrompt, AI_SUMMARY_SCHEMA };
