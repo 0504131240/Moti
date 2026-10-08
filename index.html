@@ -17,6 +17,7 @@
 body{background:#f5efe6;min-height:100vh;font-family:'Rubik','Segoe UI',Arial,sans-serif;color:#2f2a24;direction:rtl;font-variant-numeric:tabular-nums}
 /* Header, toolbar and month navigator stay pinned while scrolling */
 #top{position:sticky;top:0;z-index:50;background:#f5efe6}
+.catList>div:last-child{border-bottom:none!important}
 .monNav{position:sticky;top:var(--topH,110px);z-index:40;background:#f5efe6}
 .tlbRow{display:flex;align-items:center;gap:8px;padding:4px 16px 10px;overflow-x:auto;scrollbar-width:none}
 .tlbRow::-webkit-scrollbar{display:none}
@@ -39,7 +40,7 @@ th{padding:10px 8px;color:#7d7265;font-weight:600;text-align:center;font-size:12
 </head>
 <body>
 <div id="top"><div id="hdr"></div><div id="tlb"></div></div>
-<div id="cnt" style="padding:0 14px 90px"></div>
+<div id="cnt" style="padding:0 16px 96px;max-width:640px;margin:0 auto"></div>
 <div id="m1"></div>
 <div id="m2"></div>
 <div id="m3"></div>
@@ -504,47 +505,33 @@ function installApp(){if(!deferredPrompt)return;deferredPrompt.prompt();deferred
 
 function rHdr(){
   const un=USERS.find(u=>u.id===CUR_UID)?.name||'';
-  ih("hdr",`<div style="padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between">
-    <div>
+  const seg=on=>`padding:5px 12px;border-radius:9px;border:none;font-size:12.5px;font-weight:600;cursor:pointer;background:${on?'#fffdf9':'transparent'};color:${on?'#2f2a24':'#8a7f72'};${on?'box-shadow:0 1px 3px rgba(90,70,40,.12)':''}`;
+  ih("hdr",`<div style="padding:16px 18px 8px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <div style="min-width:0">
       <div style="display:flex;align-items:center;gap:7px">
-        <span style="font-size:20px;font-weight:700;color:#2f2a24;letter-spacing:-.2px">תקציב משפחתי</span>
+        <span style="font-size:21px;font-weight:700;color:#2f2a24;letter-spacing:-.3px">תקציב משפחתי</span>
         <div id="syncDot" title="סנכרון ענן" style="width:7px;height:7px;border-radius:50%;background:#a39686;flex-shrink:0;transition:background .4s"></div>
       </div>
-      <div style="font-size:12px;color:#8a7f72;margin-top:1px">${un?'שלום '+un:'ניהול חכם של ההוצאות'}</div>
+      <div style="font-size:12.5px;color:#8a7f72;margin-top:1px">${un?'שלום '+un:'ניהול חכם של ההוצאות'}</div>
     </div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <button id="yp" class="qbtn" style="width:30px;height:30px;font-size:16px">&#8249;</button>
-      <span style="font-size:15px;font-weight:600;color:#5b7f6b;min-width:42px;text-align:center">${S.year}</span>
-      <button id="yn" class="qbtn" style="width:30px;height:30px;font-size:16px">&#8250;</button>
-      <button id="userBtn" title="${un||'משתמש'}" style="width:36px;height:36px;border-radius:50%;background:#5b7f6b;border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0;margin-inline-start:4px">${(un||'?').charAt(0)}</button>
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      ${S.view==='yearly'?`<button id="yp" class="qbtn" style="width:28px;height:28px;font-size:15px">&#8249;</button><span style="font-size:14px;font-weight:600;color:#5b7f6b">${S.year}</span><button id="yn" class="qbtn" style="width:28px;height:28px;font-size:15px">&#8250;</button>`:''}
+      <div style="display:flex;background:#ece4d8;border-radius:11px;padding:3px">
+        <button id="vm" style="${seg(S.view==='monthly')}">חודשי</button>
+        <button id="vy" style="${seg(S.view==='yearly')}">שנתי</button>
+      </div>
+      <button id="userBtn" title="${un||'משתמש'}" style="width:38px;height:38px;border-radius:50%;background:#5b7f6b;border:none;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${(un||'?').charAt(0)}</button>
     </div>
   </div>`);
   g("userBtn").onclick=()=>rUserMod();
-  g("yp").onclick=()=>{S.year--;ld();rAll();fbListen(S.year);};
-  g("yn").onclick=()=>{S.year++;ld();rAll();fbListen(S.year);};
+  g("vm").onclick=()=>{S.view="monthly";rAll();};
+  g("vy").onclick=()=>{S.view="yearly";rAll();};
+  if(g("yp"))g("yp").onclick=()=>{S.year--;ld();rAll();fbListen(S.year);};
+  if(g("yn"))g("yn").onclick=()=>{S.year++;ld();rAll();fbListen(S.year);};
 }
 
-function rTlb(){
-  const seg=on=>`padding:6px 16px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:${on?'#5b7f6b':'transparent'};color:${on?'#fff':'#7d7265'}`;
-  ih("tlb",`<div class="tlbRow">
-    <div style="display:flex;background:#efe7db;border-radius:13px;padding:3px;flex-shrink:0">
-      <button id="vm" style="${seg(S.view==='monthly')}">חודשי</button>
-      <button id="vy" style="${seg(S.view==='yearly')}">שנתי</button>
-    </div>
-    <button id="oA" class="chip">+ קטגוריה</button>
-    <button id="oEvt" class="chip">&#127881; אירועים</button>
-    <button id="oBudSug" class="chip">&#128161; הצעות</button>
-    <button id="oSrch" class="chip">&#128269; חיפוש</button>
-    <button id="oE" class="chip">&#11015; CSV</button>
-  </div>`);
-  g("vm").onclick=()=>{S.view="monthly";rTlb();rCnt();};
-  g("vy").onclick=()=>{S.view="yearly";rTlb();rCnt();};
-  g("oA").onclick=()=>rAddMod();
-  g("oBudSug").onclick=()=>rBudgetSuggest();
-  g("oEvt").onclick=()=>rEvents();
-  g("oSrch").onclick=()=>rSearch();
-  g("oE").onclick=doCSV;
-}
+// The old toolbar's actions now live in the header and under the category list
+function rTlb(){ih("tlb","");}
 
 function rCnt(){S.view==="monthly"?rMon():rYr();}
 
@@ -590,42 +577,38 @@ function rMon(){
   const isNow=S.month===nowM&&S.year===nowY;
   const filt=S.expFilter||'all';
 
-  const monNav=`<div class="monNav" style="display:flex;align-items:center;justify-content:space-between;margin:0 -14px 10px;padding:6px 14px 10px">
-    <button id="prevMon" style="background:#f3ece2;border:none;border-radius:10px;width:36px;height:36px;font-size:20px;color:#7d7265;cursor:pointer">&#8249;</button>
-    <div style="text-align:center;flex:1;line-height:1.2">
-      <span style="font-size:20px;font-weight:800;color:#2f2a24">${moLabel(S.month)}</span>
-      ${cycleRangeLabel(S.month)?`<span style="font-size:10px;color:#a39686;margin-right:6px">${cycleRangeLabel(S.month)}</span>`:`<div style="font-size:11px;color:#a39686">${S.year}</div>`}
+  const monNav=`<div class="monNav" style="display:flex;align-items:center;justify-content:space-between;margin:0 -16px 12px;padding:4px 18px 12px">
+    <button id="prevMon" class="qbtn" style="width:36px;height:36px;font-size:19px">&#8249;</button>
+    <div style="text-align:center;line-height:1.15">
+      <span style="font-size:26px;font-weight:700;color:#2f2a24;letter-spacing:-.4px">${moLabel(S.month)}</span><span style="font-size:13px;color:#8a7f72;margin-inline-start:6px">${S.year}</span>
+      ${cycleRangeLabel(S.month)?`<div style="font-size:11px;color:#a39686">${cycleRangeLabel(S.month)}</div>`:''}
+      ${!isNow?'<button id="todayBtn" style="margin-top:4px;padding:3px 10px;border-radius:8px;border:none;background:#e9f0eb;color:#5b7f6b;font-size:11.5px;font-weight:600;cursor:pointer">&#8617; לחודש הנוכחי</button>':''}
     </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      ${!isNow?'<button id="todayBtn" style="padding:6px 12px;border-radius:8px;border:none;background:#e9f0eb;color:#5b7f6b;font-size:12px;font-weight:700;cursor:pointer">&#8617; היום</button>':''}
-      <button id="nextMon" style="background:#f3ece2;border:none;border-radius:10px;width:40px;height:40px;font-size:22px;color:#7d7265;cursor:pointer">&#8250;</button>
-    </div>
+    <button id="nextMon" class="qbtn" style="width:36px;height:36px;font-size:19px">&#8250;</button>
   </div>`;
 
   const inc=incT(S.month),expTotal=mt(S.month),evtTot=evtMonthTotal(S.month),balance=inc-expTotal-evtTot;
-  const incomeSec=`<div style="background:#eef5ef;border-radius:14px;padding:14px 16px;margin-bottom:14px;border:1px solid #d8e6dc">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:12px;color:#3f7356;font-weight:700">&#128176; הכנסות חודשיות</div>
-      <div style="display:flex;gap:6px">
-        <button id="maaserBtn" style="padding:4px 10px;border-radius:8px;border:1px solid #e2bcc5;color:#9e5868;font-size:12px;font-weight:700;background:#f8eef0;cursor:pointer">&#129518; מעשר</button>
-        <button id="addInc" style="padding:4px 10px;border-radius:8px;border:none;color:#fff;font-size:12px;background:linear-gradient(135deg,#4f8a68,#3f7356);cursor:pointer">+ הוסף</button>
+  const card='background:#fffdf9;border:1px solid #ece4d8;border-radius:24px;box-shadow:0 6px 20px rgba(90,70,40,.06)';
+  const incomeSec=`<div style="${card};padding:18px 18px 16px;margin-bottom:12px">
+    <div style="font-size:12.5px;color:#8a7f72">מאזן החודש</div>
+    <div style="font-size:36px;font-weight:700;letter-spacing:-.8px;margin:2px 0 14px;color:${balance>=0?'#4a6b58':'#c2410c'}">${balance<0?'-':''}&#8362;${fm(Math.abs(balance))}</div>
+    <div style="display:flex;gap:10px">
+      <div id="addInc" style="flex:1;background:#f7f1e8;border-radius:14px;padding:10px 12px;cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8a7f72">הכנסות</span><span style="font-size:11.5px;color:#5b7f6b;font-weight:600">+ הוסף</span></div>
+        <div style="font-size:17px;font-weight:700;color:#4a6b58;margin-top:2px">&#8362;${fm(inc)}</div>
+      </div>
+      <div style="flex:1;background:#f7f1e8;border-radius:14px;padding:10px 12px">
+        <div style="font-size:12px;color:#8a7f72">הוצאות</div>
+        <div style="font-size:17px;font-weight:700;color:#2f2a24;margin-top:2px">&#8362;${fm(expTotal+evtTot)}</div>
       </div>
     </div>
-    <div style="display:flex;gap:10px">
-      <div style="flex:1;text-align:center"><div style="font-size:10px;color:#7d7265">הכנסה</div><div style="font-size:16px;font-weight:700;color:#3f7356">&#8362;${fm(inc)}</div></div>
-      <div style="flex:1;text-align:center"><div style="font-size:10px;color:#7d7265">הוצאה</div><div style="font-size:16px;font-weight:700;color:#5b7f6b">&#8362;${fm(expTotal)}</div></div>
-      <div style="flex:1;text-align:center"><div style="font-size:10px;color:#7d7265">מאזן</div><div style="font-size:16px;font-weight:700;color:${balance>=0?'#3f7356':'#cf5a3e'}">${balance<0?fm(Math.abs(balance))+'-&#8362;':'&#8362;'+fm(balance)}</div></div>
-    </div>
   </div>`;
+  const tile=(id,ic,l,on)=>`<button id="${id}" style="flex:1;padding:11px 4px 9px;border-radius:16px;border:1px solid ${on?'#c9d9ce':'#ece4d8'};background:${on?'#eef3ef':'#fffdf9'};cursor:pointer;font-family:inherit"><div style="font-size:19px;line-height:1">${ic}</div><div style="font-size:12.5px;font-weight:500;color:#2f2a24;margin-top:5px">${l}</div></button>`;
+  const quick=`<div style="display:flex;gap:8px;margin-bottom:${S.showIns?10:18}px">${tile('qIns','&#128202;','תובנות',S.showIns)}${tile('oEvt','&#127881;','אירועים')}${tile('oSrch','&#128269;','חיפוש')}${tile('maaserBtn','&#129518;','מעשר')}</div>`;
 
   // Filter buttons
   const filtLabels={all:'הכל',recurring:'&#128260; קבועות',variable:'&#128200; משתנות'};
-  const filtBtns=`<div style="display:flex;gap:6px;margin-bottom:14px">
-    ${['variable','all','recurring'].map(f=>{
-      const sel=filt===f;
-      return`<button class="fBtn" data-f="${f}" style="flex:1;padding:8px 4px;border-radius:10px;border:2px solid ${sel?'#5b7f6b':'#ece4d8'};background:${sel?'#e9f0eb':'#fff'};color:${sel?'#5b7f6b':'#7d7265'};font-size:12px;font-weight:${sel?700:400};cursor:pointer">${filtLabels[f]}</button>`;
-    }).join('')}
-  </div>`;
+  const filtBtns=`<div style="display:flex;background:#ece4d8;border-radius:10px;padding:2px">${['variable','all','recurring'].map(f=>{const on=filt===f;return`<button class="fBtn" data-f="${f}" style="padding:4px 10px;border-radius:8px;border:none;font-size:11.5px;font-weight:${on?600:400};background:${on?'#fffdf9':'transparent'};color:${on?'#2f2a24':'#8a7f72'};cursor:pointer;font-family:inherit">${{all:'הכל',recurring:'קבועות',variable:'משתנות'}[f]}</button>`;}).join('')}</div>`;
 
   // Cards with filter applied
   const monthCats=S.cats.filter(c=>!c.activeMonths||c.activeMonths.includes(S.month));
@@ -640,27 +623,32 @@ function rMon(){
     const pct=bud>0?Math.min((tot/bud)*100,100):0;
     const recCount=allEnt.filter(e=>e.recurring).length;
     const tr=trendHTML(cat.id);
-    return`<div data-catid="${cat.id}" style="background:#fffdf9;border-radius:14px;padding:14px 16px;border:1px solid ${ov?'#ebb9a8':'#ece4d8'};box-shadow:0 1px 4px rgba(0,0,0,.05)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="oE" data-c="${cat.id}" style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
-          <div style="width:8px;height:8px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
-          <span style="font-weight:700;font-size:14px;color:#2f2a24">${cat.name}</span>
-          ${allEnt.length>0?`<span style="font-size:11px;background:#f3ece2;color:#7d7265;border-radius:8px;padding:1px 6px">${ent.length}${filt!=='all'?'/'+allEnt.length:''}</span>`:""}
-          ${cat.isRecurring?`<span style="font-size:11px;background:#e9f0eb;color:#5b7f6b;border-radius:8px;padding:1px 6px">&#128260; קבועה</span>`:""}${recCount>0&&!cat.isRecurring?`<span style="font-size:11px;background:#e9f0eb;color:#5b7f6b;border-radius:8px;padding:1px 6px">&#128260;${recCount}</span>`:""}
-          ${tr}
+    const isCh=charityCat()?.id===cat.id,mz=isCh?maaserOf(S.month):null;
+    const barC=ov?'#c2410c':cat.color;
+    return`<div data-catid="${cat.id}" style="padding:14px 16px;border-bottom:1px solid #f0e8dc">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div class="oE" data-c="${cat.id}" style="width:36px;height:36px;border-radius:11px;background:${cat.color}22;color:${cat.color};display:grid;place-items:center;font-weight:700;font-size:15px;flex-shrink:0;cursor:pointer">${(cat.name||'?').charAt(0)}</div>
+        <div class="oE" data-c="${cat.id}" style="flex:1;min-width:0;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:15px;font-weight:500;color:#2f2a24">${cat.name}</span>
+            ${ov?'<span style="font-size:10.5px;padding:1px 8px;border-radius:20px;background:#fbe9e2;color:#c2410c;font-weight:600">חריגה</span>':''}
+            ${cat.isRecurring?'<span style="font-size:10.5px;color:#8a7f72">&#128260; קבועה</span>':recCount>0?`<span style="font-size:10.5px;color:#8a7f72">&#128260;${recCount}</span>`:''}
+            ${tr}
+          </div>
+          <div style="font-size:11.5px;color:#a39686;margin-top:1px">${ent.length} פריטים</div>
         </div>
-        <div style="display:flex;align-items:center;gap:3px">
-          ${bud>0?`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:${ov?'#f8e4dc':'#e4efe6'};color:${ov?'#b91c1c':'#3f7356'};border:1px solid ${ov?'#ebb9a8':'#86efac'}">${ov?'חרגת ':''}תקציב: &#8362;${fm(bud)}</span>`:''}
-          <button class="eC" data-c="${cat.id}" style="background:transparent;border:none;cursor:pointer;font-size:14px;padding:3px 5px;color:#a39686">&#9998;</button>
-          <button class="dC" data-c="${cat.id}" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:3px 5px;color:#a39686">&times;</button>
+        <div style="text-align:left;flex-shrink:0">
+          <div style="font-size:15.5px;font-weight:700;color:${ov?'#c2410c':'#2f2a24'}">&#8362;${fm(tot)}</div>
+          ${bud>0?`<div style="font-size:11.5px;color:#a39686">מתוך &#8362;${fm(bud)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+          <button class="eC" data-c="${cat.id}" title="עריכה" style="background:transparent;border:none;cursor:pointer;font-size:13px;padding:1px 3px;color:#c4b8a8">&#9998;</button>
+          <button class="dC" data-c="${cat.id}" title="מחיקה" style="background:transparent;border:none;cursor:pointer;font-size:15px;padding:0 3px;color:#c4b8a8;line-height:1">&times;</button>
         </div>
       </div>
-      <div style="height:5px;background:#f3ece2;border-radius:3px;margin-bottom:8px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=100?'#cf5a3e':pct>=85?'#d98a4e':'#4f8a68'};border-radius:3px"></div></div>
-      <div style="display:flex;justify-content:space-around">
-        <div style="text-align:center"><div style="font-size:10px;color:#a39686">הוצאה</div><div style="font-size:16px;font-weight:700;color:${ov?'#cf5a3e':'#5b7f6b'}">&#8362;${fm(tot)}</div></div>
-        ${bud>0?`<div style="text-align:center"><div style="font-size:10px;color:#a39686">יתרה</div><div style="font-size:16px;font-weight:700;color:${rem<0?'#cf5a3e':'#4f8a68'}">${rem<0?fm(Math.abs(rem))+'-&#8362;':'&#8362;'+fm(rem)}</div></div>`:`<div style="text-align:center"><div style="font-size:10px;color:#a39686">יתרה</div><div style="font-size:16px;font-weight:700;color:#d6ccbe">—</div></div>`}
-        <div style="text-align:center"><div style="font-size:10px;color:#a39686">פריטים</div><div style="font-size:16px;font-weight:700;color:#a39686">${ent.length}</div></div>
-      </div>
+      ${bud>0?`<div style="height:5px;border-radius:5px;background:#efe7db;margin-top:11px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barC};border-radius:5px"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#8a7f72;margin-top:6px"><span>${ov?'חריגה של &#8362;'+fm(-rem):'נותרו &#8362;'+fm(rem)}</span><span>${Math.round(tot/bud*100)}%</span></div>`:''}
+      ${mz&&mz.due>0?`<div style="font-size:11.5px;color:${mz.left>0?'#9e5868':'#4a6b58'};margin-top:6px">${mz.left>0?'מעשר: נשאר להשלים &#8362;'+fm(mz.left):'המעשר הושלם &#10004;'}</div>`:''}
       ${(cat.subs||[]).some(s=>s.budget>0)?`<div style="border-top:1px solid #f3ece2;margin-top:8px;padding-top:6px">${(cat.subs||[]).filter(s=>s.budget>0).map(s=>{const sT=ent.filter(e=>e.subCat===s.id).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);const sP=Math.min((sT/s.budget)*100,100);const sOv=sT>s.budget;return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:11px;color:#7d7265;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</span><span style="font-size:11px;font-weight:600;color:${sOv?'#cf5a3e':'#5b7f6b'};flex-shrink:0">&#8362;${fm(sT)}</span><div style="width:48px;height:4px;background:#f3ece2;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${sP}%;background:${sP>=100?'#cf5a3e':cat.color};border-radius:2px"></div></div><span style="font-size:10px;color:#a39686;flex-shrink:0">${fm(s.budget)}</span></div>`;}).join('')}</div>`:''}
     </div>`;
   }).join("");
@@ -670,21 +658,13 @@ function rMon(){
     const monthExps=(ev.expenses||[]).filter(e=>e.paid&&expCycleMonth(e.date)===S.month);
     if(!monthExps.length)return'';
     const tot=monthExps.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-    return`<div style="background:#eef5ef;border-radius:14px;padding:14px 16px;border:1px solid #d4e4d8;box-shadow:0 1px 4px rgba(0,0,0,.05)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:14px">&#127881;</span>
-          <span style="font-weight:700;font-size:14px;color:#2f2a24">${ev.name}</span>
-          <span style="font-size:11px;background:#e4efe6;color:#3f7356;border-radius:8px;padding:1px 6px">אירוע</span>
-        </div>
-        <span style="font-size:16px;font-weight:800;color:#3f7356">&#8362;${fm(tot)}</span>
+    return`<div style="padding:14px 16px;border-bottom:1px solid #f0e8dc">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:36px;height:36px;border-radius:11px;background:#eef3ef;display:grid;place-items:center;font-size:17px;flex-shrink:0">&#127881;</div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:#2f2a24">${ev.name}</div><div style="font-size:11.5px;color:#a39686">אירוע &middot; ${monthExps.length} תשלומים</div></div>
+        <div style="font-size:15.5px;font-weight:700;color:#2f2a24">&#8362;${fm(tot)}</div>
       </div>
-      <div style="height:4px;background:#d4e4d8;border-radius:3px;margin-bottom:8px"></div>
-      ${monthExps.map(e=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid #e4efe6">
-        <span style="font-size:12px;color:#2f2a24;flex:1">${e.desc}</span>
-        ${e.date?`<span style="font-size:11px;color:#a39686">${fmDate(e.date)}</span>`:''}
-        <span style="font-size:13px;font-weight:700;color:#3f7356">&#8362;${fm(e.amount)}</span>
-      </div>`).join('')}
+      ${monthExps.map(e=>`<div style="display:flex;gap:6px;font-size:12px;color:#8a7f72;margin-top:6px;padding-inline-start:47px"><span style="flex:1">${e.desc}</span>${e.date?`<span>${fmDate(e.date)}</span>`:''}<span style="font-weight:600;color:#2f2a24">&#8362;${fm(e.amount)}</span></div>`).join('')}
     </div>`;
   }).filter(h=>h).join('');
 
@@ -696,17 +676,23 @@ function rMon(){
   },0))+(filt!=='recurring'?evtTot:0);
   const filtLabel=filt==='all'?'הוצאות':filt==='recurring'?'קבועות':'משתנות';
 
+  const small='padding:8px 14px;border-radius:12px;border:1px solid #e6dccd;background:#fffdf9;color:#2f2a24;font-size:12.5px;cursor:pointer;font-family:inherit';
   ih("cnt",`
     ${monNav}
     ${incomeSec}
-    ${rCharts()}
-    <div style="background:#fffdf9;border-radius:12px;padding:10px 14px;margin-bottom:12px;border:1px solid #ece4d8;display:flex;justify-content:space-between;align-items:center">
-      <span style="color:#7d7265;font-size:13px">סה&quot;כ ${filtLabel} ${moLabel(S.month)}</span>
-      <span style="font-size:20px;font-weight:800;color:#5b7f6b">&#8362;${fm(filtTotal)}</span>
+    ${quick}
+    ${S.showIns?rCharts():''}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 9px">
+      <span style="font-size:16px;font-weight:700;color:#2f2a24">קטגוריות</span>
+      ${filtBtns}
     </div>
-    <button id="addExpBtn" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;padding:15px 36px;border-radius:50px;border:none;color:#fff;font-weight:800;font-size:15px;background:linear-gradient(135deg,#5b7f6b,#6f9480);cursor:pointer;box-shadow:0 6px 24px rgba(91,127,107,.55);white-space:nowrap;letter-spacing:.3px">&#10010; הוצאה חדשה</button>
-    ${filtBtns}
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}${evtCards}</div>
+    <div style="${card};overflow:hidden" class="catList">${cards}${evtCards}${!cards&&!evtCards?'<div style="padding:24px;text-align:center;color:#a39686;font-size:13px">אין קטגוריות להצגה</div>':''}</div>
+    <div style="display:flex;gap:8px;justify-content:center;margin:14px 0 6px;flex-wrap:wrap">
+      <button id="oA" style="${small}">+ קטגוריה</button>
+      <button id="oBudSug" style="${small}">&#128161; הצעות תקציב</button>
+      <button id="oE" style="${small}">&#11015; ייצוא CSV</button>
+    </div>
+    <button id="addExpBtn" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;padding:15px 30px;border-radius:22px;border:none;color:#fff;font-weight:700;font-size:15px;background:#5b7f6b;cursor:pointer;box-shadow:0 10px 24px rgba(91,127,107,.38);white-space:nowrap;font-family:inherit">+ הוצאה חדשה</button>
   `);
 
   g("prevMon").onclick=()=>{if(S.month===0){S.month=11;S.year--;ld();fbListen(S.year);}else{S.month--;}rAll();};
@@ -723,6 +709,12 @@ function rMon(){
   g("addInc").onclick=()=>rIncMod();
   g("maaserBtn").onclick=()=>rMaaser();
   g("addExpBtn").onclick=()=>rExpMod();
+  g("qIns").onclick=()=>{S.showIns=!S.showIns;rMon();};
+  g("oEvt").onclick=()=>rEvents();
+  g("oSrch").onclick=()=>rSearch();
+  g("oA").onclick=()=>rAddMod();
+  g("oBudSug").onclick=()=>rBudgetSuggest();
+  g("oE").onclick=doCSV;
 }
 
 function rExpMod(){
