@@ -298,20 +298,57 @@ function adjDate(dateStr,month,year){
   return String(y)+'-'+String(month+1).padStart(2,'0')+'-'+String(Math.min(day,lastDay)).padStart(2,'0');
 }
 
+// Change another year's data: start from the cloud copy (else this device's), save to both
+async function editYear(fy,fn,onlyExisting){
+  let d=null;
+  if(db){try{const sn=await _getDoc(pDoc('y'+fy));if(sn.exists())d=sn.data();}catch(e){console.warn('FB year load:',e);}}
+  if(!d){try{d=JSON.parse(localStorage.getItem(sk(fy))||'null');}catch{}}
+  if(!d||!d.mData){if(onlyExisting)return;d={cats:S.cats.map(c=>({...c})),mData:iMD(S.cats)};}
+  if(fn(d)===false)return;
+  try{localStorage.setItem(sk(fy),JSON.stringify(d));}catch{}
+  if(db)_setDoc(pDoc('y'+fy),d).catch(e=>console.warn('FB year save:',e));
+}
 function applyToFutureYears(baseId,catId,fn){
   for(let fy=S.year+1;fy<=S.year+10;fy++){
-    try{
-      const fr=localStorage.getItem(sk(fy));if(!fr)continue;
-      const fd=JSON.parse(fr);let chg=false;
+    editYear(fy,fd=>{
+      let chg=false;
       for(let m=0;m<12;m++){
-        if(fd.mData?.[m]?.[catId]){
-          const r=fn(fd.mData[m][catId].entries,baseId+m*1000,m,fy);
-          if(r!==undefined){fd.mData[m][catId].entries=r;chg=true;}
-        }
+        const c=fd.mData?.[m]?.[catId];if(!c)continue;
+        const r=fn(c.entries||[],baseId+m*1000,m,fy);
+        if(r!==undefined){c.entries=r;chg=true;}
       }
-      if(chg)localStorage.setItem(sk(fy),JSON.stringify(fd));
-    }catch{}
+      return chg;
+    },true);
   }
+}
+
+// Installment series: payments "desc (k/N)" with ids base+(k-1)*1000 in consecutive months
+function instInfo(e){
+  if(!e||e.recurring)return null;
+  if(e.inst)return e.inst;
+  const m=/\((\d+)\/(\d+)\)\s*$/.exec(e.desc||'');if(!m)return null;
+  const k=+m[1],n=+m[2];if(n<2||k<1||k>n)return null;
+  return{base:e.id-(k-1)*1000,n,i:k-1};
+}
+const instBase=d=>(d||'').replace(/\s*\(\d+\/\d+\)\s*$/,'');
+const instDesc=(b,k,n)=>b?(b+' ('+k+'/'+n+')'):(k+'/'+n);
+// Run fn(entry,k,year,month) on every payment of the series of `e` (an entry of S.month);
+// fn returns the new entry, or null to delete it
+function forInstSeries(e,catId,fn){
+  const info=instInfo(e),start=S.year*12+S.month-info.i,byYear={};
+  for(let k=0;k<info.n;k++){const abs=start+k;(byYear[Math.floor(abs/12)]=byYear[Math.floor(abs/12)]||[]).push({k,m:abs%12});}
+  const apply=(mData,list,y)=>{
+    let chg=false;
+    list.forEach(({k,m})=>{
+      const c=mData?.[m]?.[catId];if(!c)return;
+      const id=info.base+k*1000,out=[];
+      (c.entries||[]).forEach(x=>{if(x.id===id){chg=true;const r=fn(x,k,y,m);if(r)out.push(r);}else out.push(x);});
+      c.entries=out;
+    });
+    return chg;
+  };
+  Object.keys(byYear).forEach(ys=>{const y=+ys;if(y===S.year)apply(S.mData,byYear[y],y);else editYear(y,d=>apply(d.mData,byYear[y],y),true);});
+  sv();
 }
 
 function trendHTML(catId){
@@ -746,7 +783,7 @@ function rExpMod(){
           return[...entries,{id:relId,desc,amount:a,date:adjDate(date,m,fy),recurring:true,subCat}];
         });
       } else if(inst>1){
-        const perMonth=Math.round(a/inst*100)/100;
+        const perMonth=Math.round(a/inst*100)/100,later={};
         for(let i=0;i<inst;i++){
           const tMonth=(S.month+i)%12;
           const tYear=S.year+Math.floor((S.month+i)/12);
@@ -755,17 +792,16 @@ function rExpMod(){
           if(tYear===S.year){
             if(!S.mData[tMonth])S.mData[tMonth]={};
             if(!S.mData[tMonth][selCat])S.mData[tMonth][selCat]={entries:[]};
-            S.mData[tMonth][selCat].entries.push({id:baseId+i*1000,desc:entryDesc,amount:perMonth,date:entryDate,recurring:false,subCat});
+            S.mData[tMonth][selCat].entries.push({id:baseId+i*1000,desc:entryDesc,amount:perMonth,date:entryDate,recurring:false,subCat,inst:{base:baseId,n:inst,i}});
           } else {
-            const fKey='bdg_v4_'+CUR_UID+'_'+tYear;
-            let fData=JSON.parse(localStorage.getItem(fKey)||'{}');
-            if(!fData[tMonth])fData[tMonth]={};
-            if(!fData[tMonth][selCat])fData[tMonth][selCat]={entries:[]};
-            fData[tMonth][selCat].entries.push({id:baseId+i*1000,desc:entryDesc,amount:perMonth,date:entryDate,recurring:false,subCat});
-            localStorage.setItem(fKey,JSON.stringify(fData));
+            (later[tYear]=later[tYear]||[]).push({m:tMonth,e:{id:baseId+i*1000,desc:entryDesc,amount:perMonth,date:entryDate,recurring:false,subCat,inst:{base:baseId,n:inst,i}}});
           }
         }
         sv();
+        Object.keys(later).forEach(y=>editYear(+y,d=>{
+          later[y].forEach(({m,e})=>{if(!d.mData[m])d.mData[m]={income:[]};if(!d.mData[m][selCat])d.mData[m][selCat]={entries:[]};d.mData[m][selCat].entries.push(e);});
+          if(!d.cats.find(c=>c.id===selCat)){const c=S.cats.find(c=>c.id===selCat);if(c)d.cats.push({...c});}
+        }));
       } else {
         S.mData[S.month][selCat].entries.push({id:baseId,desc,amount:a,date,recurring:false,subCat});
         sv();
@@ -882,6 +918,7 @@ function rEntMod(){
             <input class="inp" id="ed_amt" type="number" value="${e.amount}" style="flex:1;min-width:70px;padding:6px 8px;font-size:13px;font-weight:700"/>
             <input class="inp" id="ed_date" type="date" value="${e.date||today()}" style="flex:1;min-width:100px;padding:6px 4px;font-size:11px"/>
           </div>
+          ${instInfo(e)?`<div style="font-size:11px;color:#6366f1;margin-bottom:4px">&#128179; ישנה את כל ${instInfo(e).n} התשלומים (סכום לתשלום)</div>`:''}
           ${cat.subs?.length?`<div style="margin-bottom:4px"><select class="inp" id="ed_sub" style="width:100%;padding:6px 8px;font-size:12px"><option value="">כללי</option>${cat.subs.map(s=>`<option value="${s.id}"${e.subCat===s.id?' selected':''}>${s.name}</option>`).join('')}</select></div>`:''}
           <div style="display:flex;gap:5px">
             <button class="saveEnt" data-e="${e.id}" style="flex:1;padding:6px;border-radius:8px;border:none;color:#fff;background:#6366f1;font-size:12px;cursor:pointer">שמור</button>
@@ -943,6 +980,9 @@ function rEntMod(){
         if(!entries.some(e=>e.id===relId))return undefined;
         return entries.map(e=>e.id===relId?{...e,desc,amount:a,date:adjDate(date,m,fy),subCat}:e);
       });
+    }else if(instInfo(entry)){
+      const n=instInfo(entry).n,b=instBase(desc);
+      forInstSeries(entry,S.aCat,(x,k,y,m)=>({...x,desc:instDesc(b,k+1,n),amount:a,date:adjDate(date,m,y),subCat}));
     }else{
       S.mData[S.month][S.aCat].entries=S.mData[S.month][S.aCat].entries.map(e=>e.id===id?{...e,desc,amount:a,date,subCat}:e);
       sv();
@@ -963,6 +1003,10 @@ function rEntMod(){
         if(!entries.some(e=>e.id===relId))return undefined;
         return entries.filter(e=>e.id!==relId);
       });
+    }else if(instInfo(entry)){
+      const n=instInfo(entry).n;
+      if(!confirm('זו עסקה בתשלומים ('+(instInfo(entry).i+1)+'/'+n+'). למחוק את כל '+n+' התשלומים?'))return;
+      forInstSeries(entry,S.aCat,()=>null);
     }else{
       S.mData[S.month][S.aCat].entries=S.mData[S.month][S.aCat].entries.filter(e=>e.id!==id);
       sv();
