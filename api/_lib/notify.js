@@ -56,15 +56,24 @@ function summarize(yearDoc, evts, cycle) {
   const cats = yearDoc?.cats || [];
   const md = yearDoc?.mData?.[cycle.month] || yearDoc?.mData?.[String(cycle.month)] || {};
   const income = (md.income || []).reduce((s, e) => s + num(e.amount), 0);
-  const rows = cats.map(c => ({
-    name: c.name,
-    spent: (md[c.id]?.entries || []).reduce((s, e) => s + num(e.amount), 0),
-    budget: num(c.budget) + num(c.budgetRec),
-    charity: c.builtin === 'charity' || (c.name || '').trim() === 'צדקה',
-  }));
+  const inCycle = p => p.date >= cycle.from && p.date <= cycle.to;
+  const rows = cats.map(c => {
+    const entries = md[c.id]?.entries || [];
+    return {
+      name: c.name,
+      spent: entries.reduce((s, e) => s + num(e.amount), 0),
+      budget: num(c.budget) + num(c.budgetRec),
+      charity: c.builtin === 'charity' || (c.name || '').trim() === 'צדקה',
+      // The single expenses, for Claude's analysis
+      subs: (c.subs || []).map(sb => ({ name: sb.name, budget: num(sb.budget) })).filter(sb => sb.name),
+      items: entries.map(e => ({ desc: e.desc || '', amount: num(e.amount), date: e.date || '', sub: (c.subs || []).find(sb => sb.id === e.subCat)?.name || '', rec: !!e.recurring })),
+    };
+  });
   const events = (evts || []).map(ev => ({
     name: ev.name || ev.title || 'אירוע',
-    spent: (ev.expenses || []).flatMap(evPays).filter(p => p.date >= cycle.from && p.date <= cycle.to).reduce((s, p) => s + p.amt, 0),
+    budget: num(ev.budget),
+    spent: (ev.expenses || []).flatMap(evPays).filter(inCycle).reduce((s, p) => s + p.amt, 0),
+    items: (ev.expenses || []).map(e => ({ desc: e.desc || '', amount: num(e.amount), paidNow: evPays(e).filter(inCycle).reduce((s, p) => s + p.amt, 0) })).filter(e => e.paidNow > 0),
   })).filter(e => e.spent > 0);
   const catTotal = rows.reduce((s, r) => s + r.spent, 0);
   const evtTotal = events.reduce((s, e) => s + e.spent, 0);
@@ -117,16 +126,29 @@ const AI_SUMMARY_SCHEMA = {
   additionalProperties: false,
 };
 
+const MAX_LINES = 800; // expense lines in the monthly prompt
+const clip = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+
 function monthlyPrompt(label, year, s) {
+  const cats = s.rows.filter(r => r.spent > 0 || r.budget > 0);
+  const perCat = Math.max(30, Math.floor(MAX_LINES / (cats.length || 1)));
   const data = {
     income: Math.round(s.income), expenses: Math.round(s.expenses), balance: Math.round(s.balance),
-    categories: s.rows.filter(r => r.spent > 0 || r.budget > 0).map(r => ({ name: r.name, spent: Math.round(r.spent), budget: r.budget })),
-    events: s.events.map(e => ({ name: e.name, spent: Math.round(e.spent) })),
+    categories: cats.map(r => {
+      // Largest expenses first when there are too many lines
+      const items = [...(r.items || [])].sort((a, b) => b.amount - a.amount);
+      const out = { name: r.name, spent: Math.round(r.spent), budget: r.budget };
+      if (r.subs?.length) out.subs = r.subs;
+      if (items.length) out.items = items.slice(0, perCat).map(e => [clip(e.desc, 40), Math.round(e.amount), clip(e.date, 10), clip(e.sub, 30), e.rec ? 1 : 0]);
+      if (items.length > perCat) out.itemsOmitted = items.length - perCat;
+      return out;
+    }),
+    events: s.events.map(e => ({ name: e.name, budget: e.budget, spent: Math.round(e.spent), items: (e.items || []).slice(0, 40).map(x => [clip(x.desc, 40), Math.round(x.amount), Math.round(x.paidNow)]) })),
     maaser: s.maaser,
   };
-  return `אתה יועץ כלכלי למשפחה ישראלית. הנה סיכום חודש ${label} ${year} שהסתיים (הכנסות, הוצאות לפי קטגוריה מול התקציב, הוצאות אירועים ומעשר):
+  return `אתה יועץ כלכלי למשפחה ישראלית. הנה נתוני חודש ${label} ${year} שהסתיים: הכנסות, הוצאות ומאזן; לכל קטגוריה שמה, ההוצאה מול התקציב, תתי-הקטגוריות, וכל הוצאה בנפרד בפורמט [תיאור כפי שהמשפחה כתבה, סכום, תאריך, תת-קטגוריה, 1 אם היא הוצאה קבועה] (itemsOmitted: הוצאות קטנות שלא נכללו ברשימה אבל כן בסכום); אירועים מיוחדים עם התקציב שלהם וההוצאות ששולמו החודש [תיאור, סכום מלא, שולם החודש]; ומעשר.
 ${JSON.stringify(data)}
-כתוב ב-summary שניים-שלושה משפטים על החודש: מה הלך טוב, איפה הייתה חריגה ומה המשמעות. ב-tips כתוב עד 3 הצעות מעשיות וקצרות לשיפור בחודש הבא. קטגוריית "צדקה" היא נתינה מתוך עיקרון, אל תציע לקצץ בה. בעברית, בטון חם ולא שיפוטי.`;
+כתוב ב-summary שניים-שלושה משפטים על החודש: מה הלך טוב, איפה הייתה חריגה ובגלל אילו הוצאות ספציפיות, ומה המשמעות. ב-tips כתוב עד 3 הצעות מעשיות וקצרות לשיפור בחודש הבא, שמתייחסות להוצאות מהנתונים (מנויים, בתי עסק, הוצאות שחוזרות). קטגוריית "צדקה" היא נתינה מתוך עיקרון, אל תציע לקצץ בה. בעברית, בטון חם ולא שיפוטי.`;
 }
 
 function aiBoxHtml(ai) {

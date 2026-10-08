@@ -1740,7 +1740,11 @@ function rBudgetSuggest(){
     try{
       const token=await auth.currentUser.getIdToken();
       const body={pid:CUR_UID,months:months.map(mo=>({label:MO[mo.m]+' '+mo.y,income:Math.round(mo.inc)})),
-        cats:sugs.map(x=>({id:x.cat.id,name:x.cat.name,budget:x.curVar,budgetRec:x.curRec,variable:x.varA.map(Math.round),recurring:x.recA.map(Math.round)}))};
+        cats:sugs.map(x=>({id:x.cat.id,name:x.cat.name,budget:x.curVar,budgetRec:x.curRec,variable:x.varA.map(Math.round),recurring:x.recA.map(Math.round),
+          subs:(x.cat.subs||[]).map(sb=>({name:sb.name,budget:Math.round(sb.budget||0)})),
+          // Each expense of the period: [month index, description, amount, sub-category, recurring]
+          items:months.flatMap((mo,i)=>mo.ents[x.cat.id].map(e=>[i,e.desc||'',Math.round(parseFloat(e.amount)||0),(x.cat.subs||[]).find(sb=>sb.id===e.subCat)?.name||'',e.recurring?1:0]))})),
+        events:EVENTS.map(ev=>({name:ev.name||'',budget:Math.round(parseFloat(ev.budget)||0),expenses:(ev.expenses||[]).map(e=>[e.desc||'',Math.round(parseFloat(e.amount)||0),Math.round(evPaid(e)),e.date||''])}))};
       const r=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});
       const out=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(out.error||'הניתוח נכשל');
