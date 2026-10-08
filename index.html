@@ -170,6 +170,7 @@ function fbSave(){
 function saveBudgets(){
   const bdata=S.cats.map(c=>({id:c.id,budget:c.budget||0,budgetRec:c.budgetRec||0,subs:(c.subs||[]).map(s=>({id:s.id,budget:s.budget||0}))}));
   try{localStorage.setItem('bdg_bud_'+CUR_UID,JSON.stringify(bdata));}catch{}
+  if(!db)setPend('bud',true);
   if(db&&_setDoc&&_doc)_setDoc(pDoc('bud'),{b:bdata}).catch(e=>console.warn('FB bud save:',e));
 }
 function applyBudgets(cats){
@@ -185,6 +186,7 @@ function applyBudgets(cats){
 }
 function fbLoadBudgets(){
   if(!db||!_getDoc||!_doc)return;
+  if(getPend().bud){saveBudgets();setPend('bud',false);return;}
   _getDoc(pDoc('bud')).then(snap=>{
     if(!snap.exists())return;
     const bdata=snap.data().b||[];
@@ -196,8 +198,22 @@ function fbListen(year){
   if(!db||!_onSnapshot||!_doc){return;}
   if(unsubFire)unsubFire();
   unsubFire=_onSnapshot(pDoc('y'+year),snap=>{
-    if(!snap.exists())return;
+    const pend=getPend()['y'+year];
+    let local=null;
+    if(pend){try{local=JSON.parse(localStorage.getItem(sk(year))||'null');}catch{}}
+    if(!snap.exists()){
+      // Nothing in the cloud yet: upload what this device saved offline
+      if(local?.mData&&year===S.year){fbSave();setPend('y'+year,false);}
+      return;
+    }
     const d=snap.data();
+    // Keep what was added on this device while offline instead of overwriting it with the cloud copy
+    if(local?.mData){
+      d.cats=d.cats||[];d.mData=d.mData||{};
+      const n=mergeLocalYear(d,local);
+      setPend('y'+year,false);
+      if(n)_setDoc(pDoc('y'+year),{cats:d.cats,mData:d.mData}).catch(e=>console.warn('FB merge save:',e));
+    }
     S.cats=d.cats||DF.map(c=>({...c}));
     S.mData=d.mData||iMD(S.cats);
     eC(S.cats,S.mData);ensureCharity();
@@ -274,6 +290,23 @@ function ensureCharity(){
   eC(S.cats,S.mData);
 }
 function sk(y){return"bdg_v4_"+CUR_UID+"_"+y;}
+// Changes saved on this device while the cloud wasn't reachable ({y2026:1, bud:1}); merged up on the next connection
+function getPend(){try{return JSON.parse(localStorage.getItem('bdg_pend_'+CUR_UID)||'{}');}catch{return{};}}
+function setPend(k,on){const p=getPend();if(on)p[k]=1;else delete p[k];try{localStorage.setItem('bdg_pend_'+CUR_UID,JSON.stringify(p));}catch{}}
+// Add to the cloud year doc every category, entry and income line that exists only in the local copy
+function mergeLocalYear(cloud,local){
+  let added=0;
+  const key=e=>e&&e.id!=null?'i'+e.id:JSON.stringify(e);
+  (local.cats||[]).forEach(lc=>{if(!cloud.cats.find(c=>c.id===lc.id)){cloud.cats.push({...lc});added++;}});
+  for(let m=0;m<12;m++){
+    const lm=local.mData?.[m];if(!lm)continue;
+    const cm=cloud.mData[m]||(cloud.mData[m]={income:[]});
+    const addAll=(from,to)=>{const have=new Set(to.map(key));from.forEach(e=>{if(!have.has(key(e))){to.push(e);added++;}});};
+    addAll(lm.income||[],cm.income||(cm.income=[]));
+    Object.keys(lm).forEach(k=>{if(k==='income'||!lm[k]?.entries)return;const cc=cm[k]||(cm[k]={entries:[]});addAll(lm[k].entries,cc.entries||(cc.entries=[]));});
+  }
+  return added;
+}
 function iMD(c){const m={};for(let i=0;i<12;i++){m[i]={income:[]};c.forEach(x=>{m[i][x.id]={entries:[]};});}return m;}
 function eC(c,m){for(let i=0;i<12;i++){if(!m[i])m[i]={income:[]};if(!m[i].income)m[i].income=[];c.forEach(x=>{if(!m[i][x.id])m[i][x.id]={entries:[]};});}return m;}
 function ld(){
@@ -305,6 +338,7 @@ function ld(){
 }
 function sv(){
   try{localStorage.setItem(sk(S.year),JSON.stringify({cats:S.cats,mData:S.mData}));}catch{}
+  if(!db)setPend('y'+S.year,true);
   saveBudgets();
   fbSave();
 }
@@ -349,6 +383,7 @@ async function editYear(fy,fn,onlyExisting){
   if(!d||!d.mData){if(onlyExisting)return;d={cats:S.cats.map(c=>({...c})),mData:iMD(S.cats)};}
   if(fn(d)===false)return;
   try{localStorage.setItem(sk(fy),JSON.stringify(d));}catch{}
+  if(!db)setPend('y'+fy,true);
   if(db)_setDoc(pDoc('y'+fy),d).catch(e=>console.warn('FB year save:',e));
 }
 function applyToFutureYears(baseId,catId,fn){
