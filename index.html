@@ -18,6 +18,18 @@ body{background:#f5efe6;min-height:100vh;font-family:'Rubik','Segoe UI',Arial,sa
 /* Header, toolbar and month navigator stay pinned while scrolling */
 #top{position:sticky;top:0;z-index:50;background:#f5efe6}
 .catList>div:last-child{border-bottom:none!important}
+/* Computer: summary + vertical quick buttons on one side, categories on the other */
+@media (min-width:900px){
+  #cnt{max-width:1180px!important}
+  #hdr>div{max-width:1212px;margin:0 auto}
+  .monGrid{display:grid;grid-template-columns:380px minmax(0,1fr);gap:24px;align-items:start}
+  .monSide{position:sticky;top:calc(var(--topH,90px) + 84px);max-height:calc(100vh - var(--topH,90px) - 100px);overflow-y:auto;scrollbar-width:none}
+  .quickRow{flex-direction:column}
+  .quickRow>button{display:flex;align-items:center;gap:12px;padding:13px 18px!important;text-align:right}
+  .quickRow>button>div{margin:0!important}
+  .quickRow>button>div:last-child{font-size:14.5px!important}
+  #addExpBtn{left:32px!important;transform:none!important;bottom:28px!important}
+}
 html.dark body,html.dark #top,html.dark .monNav{background:#17140f;color:#ede6db}
 html.dark .inp,html.dark .modal,html.dark .chip,html.dark .qbtn,html.dark #installBar{background:#221e18;border-color:#3a332a;color:#ede6db}
 html.dark .chip{color:#ede6db}html.dark .qbtn{color:#a89d8f}
@@ -633,7 +645,7 @@ function rMon(){
     </div>
   </div>`;
   const tile=(id,ic,l,on)=>`<button id="${id}" style="flex:1;padding:11px 4px 9px;border-radius:16px;border:1px solid ${on?'#c9d9ce':'#ece4d8'};background:${on?'#eef3ef':'#fffdf9'};cursor:pointer;font-family:inherit"><div style="font-size:19px;line-height:1">${ic}</div><div style="font-size:12.5px;font-weight:500;color:#2f2a24;margin-top:5px">${l}</div></button>`;
-  const quick=`<div style="display:flex;gap:8px;margin-bottom:${S.showIns?10:18}px">${tile('qIns','&#128202;','תובנות',S.showIns)}${tile('oEvt','&#127881;','אירועים')}${tile('oSrch','&#128269;','חיפוש')}${tile('maaserBtn','&#129518;','מעשר')}</div>`;
+  const quick=`<div class="quickRow" style="display:flex;gap:8px;margin-bottom:${S.showIns?10:18}px">${tile('qIns','&#128202;','תובנות',S.showIns)}${tile('oEvt','&#127881;','אירועים')}${tile('oSrch','&#128269;','חיפוש')}${tile('maaserBtn','&#129518;','מעשר')}</div>`;
 
   // Filter buttons
   const filtLabels={all:'הכל',recurring:'&#128260; קבועות',variable:'&#128200; משתנות'};
@@ -684,7 +696,8 @@ function rMon(){
 
   // Event cards for this month (paid expenses only)
   const evtCards=EVENTS.map(ev=>{
-    const monthExps=(ev.expenses||[]).filter(e=>e.paid&&expCycleMonth(e.date)===S.month);
+    const monthExps=(ev.expenses||[]).flatMap(e=>{const ps=evPays(e),part=ps.length>1||(!e.paid&&ps.length);
+      return ps.filter(p=>expCycleMonth(p.date)===S.month).map(p=>({desc:e.desc+(part?' (תשלום)':''),amount:p.amt,date:p.date}));});
     if(!monthExps.length)return'';
     const tot=monthExps.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
     return`<div style="padding:14px 16px;border-bottom:1px solid #f0e8dc">
@@ -708,9 +721,11 @@ function rMon(){
   const small='padding:8px 14px;border-radius:12px;border:1px solid #e6dccd;background:#fffdf9;color:#2f2a24;font-size:12.5px;cursor:pointer;font-family:inherit';
   ih("cnt",`
     ${monNav}
+    <div class="monGrid"><div class="monSide">
     ${incomeSec}
     ${quick}
     ${S.showIns?rCharts():''}
+    </div><div class="monMain">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 9px">
       <span style="font-size:16px;font-weight:700;color:#2f2a24">קטגוריות</span>
       ${filtBtns}
@@ -721,6 +736,7 @@ function rMon(){
       <button id="oBudSug" style="${small}">&#128161; הצעות תקציב</button>
       <button id="oE" style="${small}">&#11015; ייצוא CSV</button>
     </div>
+    </div></div>
     <button id="addExpBtn" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;padding:15px 30px;border-radius:22px;border:none;color:#fff;font-weight:700;font-size:15px;background:#5b7f6b;cursor:pointer;box-shadow:0 10px 24px rgba(91,127,107,.38);white-space:nowrap;font-family:inherit">+ הוצאה חדשה</button>
   `);
 
@@ -1714,6 +1730,15 @@ function doCSV(){
   const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="תקציב_"+S.year+".csv";a.click();
 }
 
+// Payments made for an event expense: partial payments (pays: [{amt,date}]) plus the
+// rest on the expense date once it is marked fully paid
+function evPays(e){
+  const amt=parseFloat(e.amount)||0,ps=(e.pays||[]).map(p=>({amt:parseFloat(p.amt)||0,date:p.date}));
+  const sum=ps.reduce((t,p)=>t+p.amt,0);
+  if(e.paid&&sum<amt)ps.push({amt:amt-sum,date:e.date});
+  return ps;
+}
+function evPaid(e){return Math.min(parseFloat(e.amount)||0,evPays(e).reduce((t,p)=>t+p.amt,0));}
 function rEvents(){
   ih("m2",`<div class="overlay" id="evO"><div class="modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -1721,8 +1746,8 @@ function rEvents(){
       <button id="cEvt" style="background:#f3ece2;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#7d7265">&times;</button>
     </div>
     ${EVENTS.length?EVENTS.map(ev=>{
-      const paid=(ev.expenses||[]).filter(e=>e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-      const pending=(ev.expenses||[]).filter(e=>!e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+      const paid=(ev.expenses||[]).reduce((s,e)=>s+evPaid(e),0);
+      const pending=(ev.expenses||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0)-evPaid(e),0);
       const total=paid+pending;
       const paidPct=ev.budget>0?Math.min(100,Math.round(paid/ev.budget*100)):0;
       const pendPct=ev.budget>0?Math.min(100-paidPct,Math.round(pending/ev.budget*100)):0;
@@ -1766,8 +1791,8 @@ function rEvents(){
 function rEventDetail(eid){
   const ev=EVENTS.find(e=>e.id===eid);
   if(!ev)return;
-  const paidAmt=(ev.expenses||[]).filter(e=>e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  const pendAmt=(ev.expenses||[]).filter(e=>!e.paid).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const paidAmt=(ev.expenses||[]).reduce((s,e)=>s+evPaid(e),0);
+  const pendAmt=(ev.expenses||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0)-evPaid(e),0);
   const total=paidAmt+pendAmt;
   const rem=ev.budget-total;
   const over=rem<0;
@@ -1796,15 +1821,19 @@ function rEventDetail(eid){
     </div>
     <div style="font-size:12px;font-weight:700;color:#7d7265;margin-bottom:8px">הוצאות (${(ev.expenses||[]).length})</div>
     <div style="max-height:30vh;overflow-y:auto;margin-bottom:12px">
-      ${exps.length?exps.map(e=>`<div style="display:flex;align-items:center;padding:8px 10px;border-radius:10px;background:${e.paid?'#fff':'#fffbeb'};border:1px solid ${e.paid?'#f3ece2':'#fde68a'};margin-bottom:5px;gap:8px">
-        <button class="togPay" data-expid="${e.id}" style="width:26px;height:26px;border-radius:50%;border:2px solid ${e.paid?'#4f8a68':'#fbbf24'};background:${e.paid?'#4f8a68':'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;padding:0">${e.paid?'&#10003;':''}</button>
+      ${exps.length?exps.map(e=>{const pd=evPaid(e),amt=parseFloat(e.amount)||0,full=e.paid||pd>=amt,part=!full&&pd>0;
+        return`<div style="padding:8px 10px;border-radius:12px;background:${full?'#fffdf9':'#fffbeb'};border:1px solid ${full?'#f3ece2':'#fde68a'};margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+        <button class="togPay" data-expid="${e.id}" title="${full?'סמן כלא שולם':'סמן כשולם במלואו'}" style="width:26px;height:26px;border-radius:50%;border:2px solid ${full?'#4f8a68':'#e8b04a'};background:${full?'#4f8a68':part?'#fdecc8':'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:${full?'#fff':'#b07a1f'};padding:0;font-weight:700">${full?'&#10003;':part?'&#189;':''}</button>
         <div class="edEvExp" data-expid="${e.id}" title="לחץ לעריכה" style="flex:1;min-width:0;cursor:pointer">
-          <div style="font-size:13px;font-weight:700;color:${e.paid?'#2f2a24':'#92400e'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.desc}</div>
-          <div style="font-size:11px;color:#a39686">${e.date?fmDate(e.date):''}${!e.paid?' &middot; ממתין לתשלום':''}</div>
+          <div style="font-size:13px;font-weight:700;color:${full?'#2f2a24':'#92400e'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.desc}</div>
+          <div style="font-size:11px;color:#a39686">${e.date?fmDate(e.date):''}${full?'':part?` &middot; שולם &#8362;${fm(pd)} &middot; נותר &#8362;${fm(amt-pd)}`:' &middot; ממתין לתשלום'}</div>
         </div>
-        <span style="font-size:14px;font-weight:800;color:${e.paid?'#5b7f6b':'#f59e0b'}">&#8362;${fm(e.amount)}</span>
+        <div style="text-align:left;flex-shrink:0"><div style="font-size:14px;font-weight:800;color:${full?'#5b7f6b':'#b07a1f'}">&#8362;${fm(amt)}</div>${!full?`<button class="payPart" data-expid="${e.id}" style="margin-top:2px;padding:0;border:none;background:transparent;color:#8a5a12;font-size:11.5px;font-weight:600;cursor:pointer;text-decoration:underline;font-family:inherit">+ תשלום חלקי</button>`:''}</div>
         <button class="delEvExp" data-expid="${e.id}" style="background:transparent;border:none;cursor:pointer;font-size:18px;color:#d6ccbe;padding:2px;line-height:1">&times;</button>
-      </div>`).join(''):'<div style="text-align:center;padding:20px;color:#d6ccbe;font-size:13px">אין הוצאות עדיין</div>'}
+        </div>
+        ${part?`<div style="height:4px;border-radius:4px;background:#f3e3c0;margin:7px 34px 0 0;overflow:hidden"><div style="height:100%;width:${Math.round(pd/amt*100)}%;background:#4f8a68"></div></div>`:''}
+      </div>`;}).join(''):'<div style="text-align:center;padding:20px;color:#d6ccbe;font-size:13px">אין הוצאות עדיין</div>'}
     </div>
     <button id="expShow" style="width:100%;padding:11px;border-radius:12px;border:1px dashed #c9d9ce;background:#eef3ef;color:#3f7356;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit">+ הוסף הוצאה</button>
     <div id="expForm" style="display:none;background:#faf6ef;border-radius:12px;border:1px dashed #c9d9ce;padding:12px">
@@ -1854,6 +1883,15 @@ function rEventDetail(eid){
     else ev.expenses.push({id:Date.now(),desc:desc||'הוצאה',amount:amt,date:dt||today(),paid});
     saveEvents();rEventDetail(eid);
   };
+  document.querySelectorAll(".payPart").forEach(btn=>btn.onclick=()=>{
+    const x=ev.expenses.find(e=>e.id===parseInt(btn.dataset.expid));if(!x)return;
+    const left=(parseFloat(x.amount)||0)-evPaid(x);
+    const v=parseFloat((prompt('כמה שילמת עכשיו? (נותר ₪'+fm(left)+')')||'').replace(/,/g,''));
+    if(!(v>0))return;
+    x.pays=[...(x.pays||[]),{amt:Math.min(v,left),date:today()}];
+    if(evPaid(x)>=(parseFloat(x.amount)||0)-0.001)x.paid=true;
+    saveEvents();rEventDetail(eid);
+  });
   document.querySelectorAll(".togPay").forEach(btn=>btn.onclick=()=>{
     const exp=ev.expenses.find(e=>e.id===parseInt(btn.dataset.expid));
     if(exp){exp.paid=!exp.paid;saveEvents();rEventDetail(eid);}
@@ -1871,7 +1909,7 @@ function expCycleMonth(dateStr){
   return(m>=0&&m<=11)?m:S.month;
 }
 function evtMonthTotal(mo){
-  return EVENTS.reduce((tot,ev)=>tot+(ev.expenses||[]).filter(e=>e.paid&&expCycleMonth(e.date)===mo).reduce((s,e)=>s+(parseFloat(e.amount)||0),0),0);
+  return EVENTS.reduce((tot,ev)=>tot+(ev.expenses||[]).reduce((s,e)=>s+evPays(e).filter(p=>expCycleMonth(p.date)===mo).reduce((a,p)=>a+p.amt,0),0),0);
 }
 
 function rSearch(){

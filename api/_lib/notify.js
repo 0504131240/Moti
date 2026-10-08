@@ -42,6 +42,15 @@ function monthLabel(month, monthStart) {
   return (parseInt(monthStart) || 1) >= 15 ? MO[(month + 1) % 12] : MO[month];
 }
 
+// Payments of an event expense (same rule as the app): partial payments, plus the rest
+// on the expense date once it is marked fully paid
+function evPays(e) {
+  const amt = num(e.amount), ps = (e.pays || []).map(p => ({ amt: num(p.amt), date: p.date }));
+  const sum = ps.reduce((t, p) => t + p.amt, 0);
+  if (e.paid && sum < amt) ps.push({ amt: amt - sum, date: e.date });
+  return ps;
+}
+
 // Summary numbers for one cycle, from the year document ({cats, mData}) and events
 function summarize(yearDoc, evts, cycle) {
   const cats = yearDoc?.cats || [];
@@ -55,7 +64,7 @@ function summarize(yearDoc, evts, cycle) {
   }));
   const events = (evts || []).map(ev => ({
     name: ev.name || ev.title || 'אירוע',
-    spent: (ev.expenses || []).filter(e => e.paid && e.date >= cycle.from && e.date <= cycle.to).reduce((s, e) => s + num(e.amount), 0),
+    spent: (ev.expenses || []).flatMap(evPays).filter(p => p.date >= cycle.from && p.date <= cycle.to).reduce((s, p) => s + p.amt, 0),
   })).filter(e => e.spent > 0);
   const catTotal = rows.reduce((s, r) => s + r.spent, 0);
   const evtTotal = events.reduce((s, e) => s + e.spent, 0);
