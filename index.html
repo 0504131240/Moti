@@ -1632,6 +1632,13 @@ function rUserMod(view=null,_=null,switchId=null){
   g("editBtn").onclick=()=>rUserMod('edit');
 }
 
+// Signed-in Firebase user, once Firebase and the saved sign-in have loaded (null after ~15s)
+async function waitAuthUser(){
+  for(let i=0;i<60&&!auth;i++)await new Promise(r=>setTimeout(r,250));
+  if(!auth)return null;
+  try{await Promise.race([auth.authStateReady(),new Promise(r=>setTimeout(r,15000))]);}catch{}
+  return auth.currentUser;
+}
 function rBudgetSuggest(){
   const N=6;
   const months=[];
@@ -1735,10 +1742,13 @@ function rBudgetSuggest(){
   // AI analysis: send a numeric summary to /api/suggest and show its budgets in the same list
   g("aiBS").onclick=async()=>{
     const box=g("aiBox"),btn=g("aiBS");
-    if(!auth?.currentUser){box.innerHTML='<div style="color:#cf5a3e;font-size:12px;margin-bottom:8px">צריך להתחבר כדי להשתמש בניתוח AI</div>';return;}
     btn.disabled=true;btn.innerHTML='&#10024; מנתח… (עד חצי דקה)';box.innerHTML='';
+    // The app opens from this device's cache while the Google sign-in still loads in the background
+    const user=await waitAuthUser();
+    if(!g("aiBS"))return;
+    if(!user){btn.disabled=false;btn.innerHTML='&#10024; ניתוח AI — הצעות חכמות';box.innerHTML='<div style="color:#cf5a3e;font-size:12px;margin-bottom:8px">החיבור לחשבון Google עוד לא הושלם. בדוק את החיבור לאינטרנט ונסה שוב.</div>';return;}
     try{
-      const token=await auth.currentUser.getIdToken();
+      const token=await user.getIdToken();
       const body={pid:CUR_UID,months:months.map(mo=>({label:MO[mo.m]+' '+mo.y,income:Math.round(mo.inc)})),
         cats:sugs.map(x=>({id:x.cat.id,name:x.cat.name,budget:x.curVar,budgetRec:x.curRec,variable:x.varA.map(Math.round),recurring:x.recA.map(Math.round),
           subs:(x.cat.subs||[]).map(sb=>({name:sb.name,budget:Math.round(sb.budget||0)})),
