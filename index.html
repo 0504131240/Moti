@@ -1739,7 +1739,7 @@ function rBudgetSuggest(){
     btn.disabled=true;btn.innerHTML='&#10024; מנתח… (עד חצי דקה)';box.innerHTML='';
     try{
       const token=await auth.currentUser.getIdToken();
-      const body={months:months.map(mo=>({label:MO[mo.m]+' '+mo.y,income:Math.round(mo.inc)})),
+      const body={pid:CUR_UID,months:months.map(mo=>({label:MO[mo.m]+' '+mo.y,income:Math.round(mo.inc)})),
         cats:sugs.map(x=>({id:x.cat.id,name:x.cat.name,budget:x.curVar,budgetRec:x.curRec,variable:x.varA.map(Math.round),recurring:x.recA.map(Math.round)}))};
       const r=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});
       const out=await r.json().catch(()=>({}));
@@ -1753,8 +1753,10 @@ function rBudgetSuggest(){
         x.nV=c.reason;x.nR=x.chR?c.reason:x.nR;
       });
       const esc=t=>String(t||'').replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+      const d2=s=>s?s.slice(8,10)+'/'+s.slice(5,7):'';
       box.innerHTML=(DARK?darken:(h=>h))(`<div style="background:#f3f7f4;border:1px solid #d4e4d8;border-radius:12px;padding:11px 13px;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:700;color:#3f7356;margin-bottom:4px">&#10024; ניתוח AI</div>
+        <div style="font-size:12px;font-weight:700;color:#3f7356;margin-bottom:4px">&#10024; ניתוח AI${out.cached?` <span style="font-weight:400;color:#8a7f72">· מתאריך ${d2(out.at)}</span>`:''}</div>
+        ${out.cached?`<div style="font-size:11.5px;color:#8a7f72;margin-bottom:6px">ניתוח אחד בשבוע. ניתוח חדש יהיה אפשרי מיום ראשון ${d2(out.next)}.</div>`:''}
         <div style="font-size:13px;color:#2f2a24;line-height:1.5">${esc(out.summary)}</div>
         ${(out.tips||[]).length?`<ul style="margin:6px 18px 0 0;font-size:12.5px;color:#5e554a;line-height:1.5">${out.tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
       </div>`);

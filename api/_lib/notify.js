@@ -106,6 +106,9 @@ function remindersHtml(name, list) {
     <ul style="padding-right:18px;font-size:16px">${list.map(r => `<li style="margin-bottom:6px">${esc(r.text)}</li>`).join('')}</ul></div>`;
 }
 
+// Date n days after t (n may be negative), as {y, m, d, str}
+const addDays = (t, n) => { const d = new Date(Date.UTC(t.y, t.m, t.d + n)); return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), str: ymd(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) }; };
+
 // ---------- Claude analysis for the monthly summary ----------
 const AI_SUMMARY_SCHEMA = {
   type: 'object',
@@ -136,4 +139,4 @@ function aiBoxHtml(ai) {
 }
 
 module.exports = { MO, israelToday, dueReminders, endingCycle, monthLabel, summarize, summaryHtml, remindersHtml,
-  monthlyPrompt, AI_SUMMARY_SCHEMA };
+  monthlyPrompt, AI_SUMMARY_SCHEMA, addDays };
