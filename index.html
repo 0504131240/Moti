@@ -18,6 +18,12 @@ body{background:#f5efe6;min-height:100vh;font-family:'Rubik','Segoe UI',Arial,sa
 /* Header, toolbar and month navigator stay pinned while scrolling */
 #top{position:sticky;top:0;z-index:50;background:#f5efe6}
 .catList>div:last-child{border-bottom:none!important}
+html.dark body,html.dark #top,html.dark .monNav{background:#17140f;color:#ede6db}
+html.dark .inp,html.dark .modal,html.dark .chip,html.dark .qbtn,html.dark #installBar{background:#221e18;border-color:#3a332a;color:#ede6db}
+html.dark .chip{color:#ede6db}html.dark .qbtn{color:#a89d8f}
+html.dark input[type=date]{color-scheme:dark}
+html.dark th{background:#2a251e;color:#a89d8f}
+html.dark .overlay{background:rgba(0,0,0,.6)}
 .monNav{position:sticky;top:var(--topH,110px);z-index:40;background:#f5efe6}
 .tlbRow{display:flex;align-items:center;gap:8px;padding:4px 16px 10px;overflow-x:auto;scrollbar-width:none}
 .tlbRow::-webkit-scrollbar{display:none}
@@ -296,7 +302,19 @@ function cyt(id){let t=0;for(let m=0;m<12;m++)t+=ct(m,id);return t;}
 function gt(){return S.cats.reduce((s,c)=>s+cyt(c.id),0);}
 function incT(mo){return(S.mData[mo]?.income||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);}
 function g(id){return document.getElementById(id);}
-function ih(id,h){const e=g(id);if(e)e.innerHTML=h;}
+// Dark mode (per device): swap the light palette for a warm dark one in everything rendered
+let DARK=false;try{DARK=localStorage.getItem('bdg_dark')==='1';}catch{}
+const DK={'#f5efe6':'#17140f','#fffdf9':'#221e18','#ffffff':'#221e18','#f7f1e8':'#2a251e','#faf6ef':'#2a251e','#f3ece2':'#2a251e','#efe7db':'#302a22',
+ '#ece4d8':'#3a332a','#e6dccd':'#3a332a','#f0e8dc':'#332d25','#d6ccbe':'#5d554a','#c4b8a8':'#6a6155','#2f2a24':'#ede6db','#5e554a':'#cfc5b8',
+ '#7d7265':'#a89d8f','#8a7f72':'#a89d8f','#a39686':'#8c8172','#5b7f6b':'#7fa58f','#6f9480':'#8fb39f','#4a6b58':'#8fbf9f','#3f7356':'#86c09c','#4f8a68':'#6fae86',
+ '#e9f0eb':'#26332b','#eef3ef':'#26332b','#eef5ef':'#26332b','#e4efe6':'#26332b','#d4e4d8':'#35473b','#c9d9ce':'#35473b','#d8e6dc':'#35473b','#d5e2d9':'#35473b','#f3f7f4':'#26332b',
+ '#fbe9e2':'#3a2620','#f8e4dc':'#3a2620','#fbefe9':'#3a2620','#f0cfc2':'#5a3a2e','#ebb9a8':'#5a3a2e','#f8eef0':'#36262a','#e2bcc5':'#5a3c44','#9e5868':'#d59aa8','#b56b7c':'#d59aa8',
+ '#fffbeb':'#352c1a','#fde68a':'#5c4a22','#fef3c7':'#352c1a'};
+function darken(h){
+  return h.replace(/background:#fff(?![0-9a-fA-F])/g,'background:#221e18').replace(/#[0-9a-fA-F]{6}\b/g,c=>DK[c.toLowerCase()]||c);
+}
+function applyDark(){document.documentElement.classList.toggle('dark',DARK);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=DARK?'#17140f':'#f5efe6';}
+function ih(id,h){const e=g(id);if(e)e.innerHTML=DARK?darken(h):h;}
 
 function adjDate(dateStr,month,year){
   if(!dateStr)return today();
@@ -589,18 +607,26 @@ function rMon(){
 
   const inc=incT(S.month),expTotal=mt(S.month),evtTot=evtMonthTotal(S.month),balance=inc-expTotal-evtTot;
   const card='background:#fffdf9;border:1px solid #ece4d8;border-radius:24px;box-shadow:0 6px 20px rgba(90,70,40,.06)';
-  const incomeSec=`<div style="${card};padding:18px 18px 16px;margin-bottom:12px">
-    <div style="font-size:12.5px;color:#8a7f72">מאזן החודש</div>
-    <div style="font-size:36px;font-weight:700;letter-spacing:-.8px;margin:2px 0 14px;color:${balance>=0?'#4a6b58':'#c2410c'}">${balance<0?'-':''}&#8362;${fm(Math.abs(balance))}</div>
-    <div style="display:flex;gap:10px">
-      <div id="addInc" style="flex:1;background:#f7f1e8;border-radius:14px;padding:10px 12px;cursor:pointer">
-        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#8a7f72">הכנסות</span><span style="font-size:11.5px;color:#5b7f6b;font-weight:600">+ הוסף</span></div>
-        <div style="font-size:17px;font-weight:700;color:#4a6b58;margin-top:2px">&#8362;${fm(inc)}</div>
-      </div>
-      <div style="flex:1;background:#f7f1e8;border-radius:14px;padding:10px 12px">
-        <div style="font-size:12px;color:#8a7f72">הוצאות</div>
-        <div style="font-size:17px;font-weight:700;color:#2f2a24;margin-top:2px">&#8362;${fm(expTotal+evtTot)}</div>
-      </div>
+  // Total monthly budget = every category active this month (regular + recurring budget)
+  const budCats=S.cats.filter(c=>!c.activeMonths||c.activeMonths.includes(S.month));
+  const totBud=budCats.reduce((t,c)=>t+(c.budget||0)+(c.budgetRec||0),0);
+  const budLeft=totBud-expTotal,budOv=totBud>0&&expTotal>totBud,budPct=totBud>0?Math.min(100,expTotal/totBud*100):0;
+  const mini=(l,v,c,extra='')=>`<div ${extra} style="flex:1;background:#f7f1e8;border-radius:14px;padding:9px 11px;${extra?'cursor:pointer':''}"><div style="font-size:11.5px;color:#8a7f72;display:flex;justify-content:space-between">${l}</div><div style="font-size:15.5px;font-weight:700;color:${c};margin-top:1px">${v}</div></div>`;
+  const incomeSec=`<div style="${card};padding:18px 18px 14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <span style="font-size:12.5px;color:#8a7f72">הוצאות מול תקציב</span>
+      ${totBud>0?`<span style="font-size:12px;font-weight:600;color:${budOv?'#c2410c':'#5b7f6b'}">${Math.round(expTotal/totBud*100)}%</span>`:''}
+    </div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
+      <span style="font-size:34px;font-weight:700;letter-spacing:-.8px;color:${budOv?'#c2410c':'#2f2a24'}">&#8362;${fm(expTotal)}</span>
+      <span style="font-size:15px;color:#8a7f72">מתוך &#8362;${fm(totBud)}</span>
+    </div>
+    ${totBud>0?`<div style="height:8px;border-radius:8px;background:#efe7db;overflow:hidden"><div style="height:100%;width:${budPct}%;background:${budOv?'#c2410c':budPct>=85?'#d98a4e':'#5b7f6b'};border-radius:8px"></div></div>
+    <div style="font-size:12px;color:${budOv?'#c2410c':'#8a7f72'};margin:6px 0 14px">${budOv?'חריגה של &#8362;'+fm(-budLeft)+' מהתקציב':'נותרו &#8362;'+fm(budLeft)+' בתקציב החודש'}</div>`:'<div style="font-size:12px;color:#8a7f72;margin-bottom:14px">לא הוגדר תקציב לקטגוריות</div>'}
+    <div style="display:flex;gap:8px">
+      ${mini('<span>הכנסות</span><span style="color:#5b7f6b;font-weight:600">+ הוסף</span>','&#8362;'+fm(inc),'#4a6b58','id="addInc"')}
+      ${mini('הוצאות','&#8362;'+fm(expTotal+evtTot),'#2f2a24')}
+      ${mini('מאזן',(balance<0?'-':'')+'&#8362;'+fm(Math.abs(balance)),balance>=0?'#4a6b58':'#c2410c')}
     </div>
   </div>`;
   const tile=(id,ic,l,on)=>`<button id="${id}" style="flex:1;padding:11px 4px 9px;border-radius:16px;border:1px solid ${on?'#c9d9ce':'#ece4d8'};background:${on?'#eef3ef':'#fffdf9'};cursor:pointer;font-family:inherit"><div style="font-size:19px;line-height:1">${ic}</div><div style="font-size:12.5px;font-weight:500;color:#2f2a24;margin-top:5px">${l}</div></button>`;
@@ -857,7 +883,8 @@ function rIncMod(){
       <span style="font-size:16px;font-weight:800;color:#3f7356">&#128176; הכנסות — ${moLabel(S.month)}</span>
       <button id="cInc" style="background:#f3ece2;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#7d7265">&times;</button>
     </div>
-    <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap">
+    <button id="incShow" style="width:100%;padding:11px;border-radius:12px;border:1px dashed #c9d9ce;background:#eef3ef;color:#3f7356;font-weight:600;font-size:14px;cursor:pointer;margin-bottom:12px;font-family:inherit">+ הוסף הכנסה</button>
+    <div id="incForm" style="display:none;gap:5px;margin-bottom:12px;flex-wrap:wrap">
       <input class="inp" id="iD" placeholder="תיאור (משכורת, פרילנס...)" style="flex:2;min-width:120px;padding:8px 10px"/>
       <input class="inp" id="iA" type="number" placeholder="&#8362;" style="flex:1;min-width:70px;padding:8px 10px;font-size:15px;font-weight:700"/>
       <input class="inp" id="iDt" type="date" value="${today()}" style="flex:1;min-width:100px;padding:8px 6px;font-size:12px"/>
@@ -868,6 +895,7 @@ function rIncMod(){
   </div></div>`);
   g("cInc").onclick=()=>{ih("m1","");rMon();};
   g("incO").onclick=e=>{if(e.target.id==="incO"){ih("m1","");rMon();}};
+  g("incShow").onclick=()=>{g("incShow").style.display='none';g("incForm").style.display='flex';g("iA").focus();};
   g("iA").onkeydown=e=>{if(e.key==="Enter")g("iAdd").click();};
   g("iAdd").onclick=()=>{
     const a=parseFloat(g("iA").value);if(!a)return;
@@ -1410,7 +1438,11 @@ function rUserMod(view=null,_=null,switchId=null){
           <input class="inp" id="monthStartInp" type="number" min="1" max="28" value="${ms}" style="width:60px;text-align:center;padding:8px 6px;font-size:15px;font-weight:700"/>
           <button id="saveMonthStart" style="padding:9px 14px;border-radius:10px;border:none;background:#5b7f6b;color:#fff;font-size:13px;font-weight:700;cursor:pointer">שמור</button>
         </div>
-        <div style="font-size:11px;color:#a39686;margin-bottom:18px">לדוגמה: יום 15 — מה-15 עד ה-14 בחודש הבא</div>
+        <div style="font-size:11px;color:#a39686;margin-bottom:12px">לדוגמה: יום 15 — מה-15 עד ה-14 בחודש הבא</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5e554a;margin-bottom:18px;cursor:pointer">
+          <input type="checkbox" id="darkTgl" ${DARK?'checked':''} style="width:18px;height:18px;accent-color:#5b7f6b"/>
+          &#127769; מצב כהה <span style="font-size:11px;color:#a39686">(במכשיר הזה)</span>
+        </label>
 
         ${others.length?`<div style="font-size:10px;font-weight:700;color:#a39686;letter-spacing:.8px;margin-bottom:8px">&#128100; משתמשים נוספים</div>
         ${others.map(u=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#faf6ef;border:1px solid #ece4d8;margin-bottom:7px">
@@ -1472,6 +1504,7 @@ function rUserMod(view=null,_=null,switchId=null){
       if(pin)cu.pin=pin;else delete cu.pin;
       saveUsers();rUserMod('edit');
     };
+    g("darkTgl").onchange=()=>{DARK=g("darkTgl").checked;try{localStorage.setItem('bdg_dark',DARK?'1':'0');}catch{}applyDark();rAll();rUserMod('edit');};
     g("saveMonthStart").onclick=()=>{
       const d=Math.max(1,Math.min(28,parseInt(g("monthStartInp").value)||1));
       saveCfg({monthStart:d});cu.monthStart=d;saveUsers();
@@ -1707,7 +1740,8 @@ function rEvents(){
         </div>
       </div>`;
     }).join(''):'<div style="text-align:center;padding:32px;color:#a39686;font-size:14px">אין אירועים עדיין</div>'}
-    <div style="background:#faf6ef;border-radius:14px;border:1px dashed #c9d9ce;padding:14px;margin-top:6px">
+    <button id="evtShow" style="width:100%;padding:12px;border-radius:12px;border:1px dashed #c9d9ce;background:#eef3ef;color:#3f7356;font-weight:600;font-size:14px;cursor:pointer;margin-top:6px;font-family:inherit">+ אירוע חדש</button>
+    <div id="evtForm" style="display:none;background:#faf6ef;border-radius:14px;border:1px dashed #c9d9ce;padding:14px;margin-top:6px">
       <div style="font-size:13px;font-weight:700;color:#2f2a24;margin-bottom:10px">+ אירוע חדש</div>
       <input class="inp" id="evtName" placeholder="שם האירוע (למשל: בר מצווה)" style="margin-bottom:8px"/>
       <input class="inp" id="evtBudget" type="number" placeholder="תקציב (&#8362;)" style="margin-bottom:10px"/>
@@ -1716,6 +1750,7 @@ function rEvents(){
   </div></div>`);
   g("cEvt").onclick=()=>ih("m2","");
   g("evO").onclick=e=>{if(e.target.id==="evO")ih("m2","");};
+  g("evtShow").onclick=()=>{g("evtShow").style.display='none';g("evtForm").style.display='block';g("evtName").focus();};
   g("addEvt").onclick=()=>{
     const n=(g("evtName").value||"").trim(),b=parseFloat(g("evtBudget").value);
     if(!n||!b)return;
@@ -1766,7 +1801,8 @@ function rEventDetail(eid){
         <button class="delEvExp" data-expid="${e.id}" style="background:transparent;border:none;cursor:pointer;font-size:18px;color:#d6ccbe;padding:2px;line-height:1">&times;</button>
       </div>`).join(''):'<div style="text-align:center;padding:20px;color:#d6ccbe;font-size:13px">אין הוצאות עדיין</div>'}
     </div>
-    <div style="background:#faf6ef;border-radius:12px;border:1px dashed #c9d9ce;padding:12px">
+    <button id="expShow" style="width:100%;padding:11px;border-radius:12px;border:1px dashed #c9d9ce;background:#eef3ef;color:#3f7356;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit">+ הוסף הוצאה</button>
+    <div id="expForm" style="display:none;background:#faf6ef;border-radius:12px;border:1px dashed #c9d9ce;padding:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span id="expFormTitle" style="font-size:12px;font-weight:700;color:#2f2a24">+ הוצאה חדשה</span><button id="expCancel" style="display:none;background:transparent;border:none;color:#a39686;font-size:12px;cursor:pointer;text-decoration:underline">ביטול עריכה</button></div>
       <input class="inp" id="expDesc" placeholder="תיאור" style="margin-bottom:6px"/>
       <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -1794,9 +1830,11 @@ function rEventDetail(eid){
   };
   // Tapping an expense loads it into the form below for editing
   let editExpId=null;
+  const showExpForm=()=>{g("expShow").style.display='none';g("expForm").style.display='block';};
+  g("expShow").onclick=()=>{showExpForm();g("expAmt").focus();};
   document.querySelectorAll(".edEvExp").forEach(el=>el.onclick=()=>{
     const x=ev.expenses.find(e=>e.id===parseInt(el.dataset.expid));if(!x)return;
-    editExpId=x.id;
+    editExpId=x.id;showExpForm();
     g("expDesc").value=x.desc||'';g("expAmt").value=x.amount;g("expDate").value=x.date||today();g("expPaid").checked=!!x.paid;
     g("expFormTitle").textContent='✎ עריכת הוצאה';g("addExp").textContent='שמור שינויים';g("expCancel").style.display='';
     g("expAmt").focus();g("expAmt").select();
@@ -1948,6 +1986,7 @@ window.rEvents=rEvents;
 window.rEventDetail=rEventDetail;
 window.rSearch=rSearch;
 
+applyDark();
 {const t=document.getElementById('top');const set=()=>document.documentElement.style.setProperty('--topH',t.offsetHeight+'px');try{new ResizeObserver(set).observe(t);}catch{}set();}
 // Render immediately from localStorage — no Firebase dependency
 loadUsers();{const p=todayPeriod();S.month=p.month;S.year=p.year;}ld();loadEvents();
