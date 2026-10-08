@@ -28,7 +28,10 @@ body{background:#f5efe6;min-height:100vh;font-family:'Rubik','Segoe UI',Arial,sa
   .quickRow>button{display:flex;align-items:center;gap:12px;padding:13px 18px!important;text-align:right}
   .quickRow>button>div{margin:0!important}
   .quickRow>button>div:last-child{font-size:14.5px!important}
-  #addExpBtn{left:32px!important;transform:none!important;bottom:28px!important}
+  /* Big, centered "new expense" button about half the screen wide */
+  #addExpBtn{width:min(50vw,640px);left:50%!important;transform:translateX(-50%)!important;bottom:26px!important;padding:19px 30px!important;font-size:19px!important;font-weight:800!important;border-radius:20px!important;box-shadow:0 14px 34px rgba(91,127,107,.45)!important;letter-spacing:.2px}
+  #addExpBtn:hover{filter:brightness(1.06)}
+  #cnt{padding-bottom:140px!important}
 }
 html.dark body,html.dark #top,html.dark .monNav{background:#17140f;color:#ede6db}
 html.dark .inp,html.dark .modal,html.dark .chip,html.dark .qbtn,html.dark #installBar{background:#221e18;border-color:#3a332a;color:#ede6db}
