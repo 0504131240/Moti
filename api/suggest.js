@@ -5,13 +5,10 @@
 // Environment variables (Vercel): ANTHROPIC_API_KEY, FIREBASE_SERVICE_ACCOUNT,
 // optional ANTHROPIC_MODEL (default claude-opus-5-5) and AI_DAILY_LIMIT (default 10).
 const admin = require('firebase-admin');
-const Anthropic = require('@anthropic-ai/sdk');
 const { israelToday } = require('./_lib/notify');
+const { askClaude, Refused, Anthropic } = require('./_lib/ai');
 
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
 const DAILY_LIMIT = parseInt(process.env.AI_DAILY_LIMIT) || 10;
-// Server-side refusal fallbacks are available on these models
-const HAS_FALLBACKS = /^claude-(opus-5|fable-5|sonnet-5-5)/.test(MODEL);
 
 function app() {
   if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
@@ -95,25 +92,14 @@ ${JSON.stringify(data)}
 אל תשנה בלי סיבה תקציב שמתאים להוצאות. קטגוריה בשם "צדקה" היא נתינה מתוך עיקרון, אל תציע לקצץ בה.
 החזר לכל קטגוריה id, budget, budgetRec ונימוק קצר בעברית (עד 12 מילים). ב-summary כתוב משפט או שניים על המצב הכללי, וב-tips עד 3 טיפים מעשיים וקצרים. הכל בעברית.`;
 
-  const client = new Anthropic();
-  const params = {
-    model: MODEL,
-    max_tokens: 8000,
-    output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-    messages: [{ role: 'user', content: prompt }],
-  };
   try {
-    const msg = HAS_FALLBACKS
-      ? await client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
-      : await client.messages.create(params);
-    if (msg.stop_reason === 'refusal') return res.status(422).json({ error: 'לא ניתן היה לנתח את הנתונים הפעם' });
-    const text = msg.content.find(b => b.type === 'text')?.text || '';
-    const out = JSON.parse(text);
+    const out = await askClaude(prompt, SCHEMA);
     const ids = new Set(data.cats.map(c => c.id));
     out.categories = (out.categories || []).filter(c => ids.has(c.id)).map(c => ({ ...c, budget: Math.max(0, num(c.budget)), budgetRec: Math.max(0, num(c.budgetRec)) }));
     return res.status(200).json(out);
   } catch (e) {
     console.error('suggest', e);
+    if (e instanceof Refused) return res.status(422).json({ error: 'לא ניתן היה לנתח את הנתונים הפעם' });
     if (e instanceof Anthropic.RateLimitError) return res.status(429).json({ error: 'השירות עמוס כרגע, נסה שוב בעוד דקה' });
     if (e instanceof Anthropic.AuthenticationError) return res.status(503).json({ error: 'מפתח ה-API לא תקין' });
     return res.status(502).json({ error: 'הניתוח נכשל, נסה שוב' });

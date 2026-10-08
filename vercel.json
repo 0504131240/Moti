@@ -8,6 +8,9 @@
   "functions": {
     "api/suggest.js": {
       "maxDuration": 60
+    },
+    "api/cron.js": {
+      "maxDuration": 60
     }
   }
 }

@@ -129,7 +129,7 @@ function saveUsers(){
 }
 // Fields the app owns on a profile doc; merged so server-side fields (lastMailDay) are kept
 function profData(u){
-  const d={name:u.name,emails:u.emails||[myEmail()],reminders:u.reminders||[],mailSummary:!!u.mailSummary,pin:u.pin||_F.deleteField()};
+  const d={name:u.name,emails:u.emails||[myEmail()],reminders:u.reminders||[],mailSummary:!!u.mailSummary,mailWeekly:!!u.mailWeekly,pin:u.pin||_F.deleteField()};
   if(u.monthStart)d.monthStart=u.monthStart;
   return d;
 }
@@ -961,6 +961,44 @@ function rYr(){
     </tbody></table></div></div></div>`);
 }
 
+// A year's data: this year from memory, other years from the cloud (else this device)
+async function loadYearData(y){
+  if(y===S.year)return{cats:S.cats,mData:S.mData};
+  if(db){try{const sn=await _getDoc(pDoc('y'+y));if(sn.exists())return sn.data();}catch(e){console.warn('FB year load:',e);}}
+  try{return JSON.parse(localStorage.getItem(sk(y))||'null')||{mData:{}};}catch{return{mData:{}};}
+}
+// Spending in one category over the last 6 budget months (this one included)
+async function rCatHistory(catId){
+  const box=g("entHist"),btn=g("histBtn");if(!box)return;
+  btn.style.display='none';box.innerHTML='<div style="text-align:center;color:#a39686;font-size:12px;padding:10px">טוען…</div>';
+  const cat=S.cats.find(c=>c.id===catId)||{};
+  const rows=[],cache={};
+  for(let i=0;i<6;i++){
+    const abs=S.year*12+S.month-i,y=Math.floor(abs/12),m=abs%12;
+    if(!cache[y])cache[y]=await loadYearData(y);
+    const ents=cache[y].mData?.[m]?.[catId]?.entries||[];
+    const sum=f=>ents.filter(f).reduce((t,e)=>t+(parseFloat(e.amount)||0),0);
+    rows.push({label:moLabel(m)+(y!==S.year?' '+y:''),v:sum(e=>!e.recurring),r:sum(e=>e.recurring),now:i===0});
+  }
+  const tot=x=>x.v+x.r,max=Math.max(1,...rows.map(tot)),bud=(cat.budget||0)+(cat.budgetRec||0);
+  const past=rows.slice(1).filter(x=>tot(x)>0),avg=past.reduce((t,x)=>t+tot(x),0)/Math.max(1,past.length);
+  const html=`<div style="margin-top:12px;border-top:1px solid #ece4d8;padding-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+      <span style="font-size:13.5px;font-weight:700;color:#2f2a24">&#128197; חצי שנה אחרונה</span>
+      <span style="font-size:12px;color:#8a7f72">${past.length?`ממוצע חודשי: &#8362;${fm0(avg)}`:'אין עדיין חודשים קודמים'}${bud?` · תקציב &#8362;${fm0(bud)}`:''}</span>
+    </div>
+    ${rows.map(x=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+      <span style="width:62px;flex-shrink:0;font-size:12.5px;color:${x.now?'#2f2a24':'#7d7265'};font-weight:${x.now?600:400}">${x.label}</span>
+      <div style="flex:1;height:9px;border-radius:9px;background:#f3ece2;overflow:hidden;display:flex">
+        <div style="width:${x.v/max*100}%;background:${barColor(bud?tot(x)/bud*100:0)}"></div>
+        <div style="width:${x.r/max*100}%;background:#a8b9cc"></div>
+      </div>
+      <span style="width:72px;flex-shrink:0;text-align:left;font-size:13px;font-weight:700;color:#2f2a24">&#8362;${fm0(tot(x))}</span>
+    </div>`).join('')}
+    ${rows.some(x=>x.r>0)?'<div style="font-size:11px;color:#a39686">החלק האפור-כחול: הוצאות קבועות</div>':''}
+  </div>`;
+  box.innerHTML=DARK?darken(html):html;
+}
 function rEntMod(){
   const cat=S.cats.find(c=>c.id===S.aCat);if(!cat)return;
   const allEntMod=S.mData[S.month]?.[S.aCat]?.entries||[];
@@ -1014,9 +1052,9 @@ function rEntMod(){
       <button id="cE" style="background:#f3ece2;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#7d7265">&times;</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
-      <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">תקציב</div><div style="font-size:15px;font-weight:700;color:#5b7f6b">${cat.budget}</div></div>
-      <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">הוצאה</div><div style="font-size:15px;font-weight:700;color:${ov?'#cf5a3e':'#2f2a24'}">&#8362;${fm(tot)}</div></div>
-      <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">יתרה</div><div style="font-size:15px;font-weight:700;color:${rem<0?'#cf5a3e':'#4f8a68'}">${rem<0?fm(Math.abs(rem))+'-&#8362;':'&#8362;'+fm(rem)}</div></div>
+      <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">תקציב</div><div style="font-size:15px;font-weight:700;color:#5b7f6b;white-space:nowrap">&#8362;${fm0(cat.budget||0)}</div></div>
+      <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">הוצאה</div><div style="font-size:15px;font-weight:700;color:${ov?'#cf5a3e':'#2f2a24'};white-space:nowrap">&#8362;${fm0(tot)}</div></div>
+      <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">יתרה</div><div dir="ltr" style="font-size:15px;font-weight:700;color:${rem<0?'#cf5a3e':'#4f8a68'};white-space:nowrap">${rem<0?'-':''}&#8362;${fm0(Math.abs(rem))}</div></div>
     </div>
     <div style="height:5px;background:#f3ece2;border-radius:3px;margin-bottom:10px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor(pct)};border-radius:3px"></div></div>
     ${subBreakdown}
@@ -1026,12 +1064,15 @@ function rEntMod(){
     </div>
     <div style="max-height:230px;overflow-y:auto">${list}</div>
     ${ent.length>0?`<div style="margin-top:10px;border-top:1px solid #ece4d8;padding-top:10px;display:flex;justify-content:space-between;align-items:center"><span style="color:#a39686;font-size:12px">${ent.length} פריטים</span><span style="font-weight:700;font-size:14px;color:${ov?'#cf5a3e':'#5b7f6b'}">&#8362;${fm(tot)}</span></div>`:""}
+    <button id="histBtn" style="width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid #e6dccd;background:#faf6ef;color:#2f2a24;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit">&#128197; חודשים קודמים</button>
+    <div id="entHist"></div>
   </div></div>`);
 
   g("cE").onclick=()=>{ih("m1","");S.editEntId=null;rMon();};
   g("eO").onclick=e=>{if(e.target.id==="eO"){ih("m1","");S.editEntId=null;rMon();}};
   g("entSearch").oninput=()=>rEntMod();
   g("sortBtn").onclick=()=>{S.sortEnt=S.sortEnt==="date"?"amount":"date";rEntMod();};
+  g("histBtn").onclick=()=>rCatHistory(S.aCat);
   document.querySelectorAll(".editEnt").forEach(b=>b.onclick=()=>{S.editEntId=parseInt(b.dataset.e);rEntMod();});
   document.querySelectorAll(".saveEnt").forEach(b=>b.onclick=()=>{
     const id=parseInt(b.dataset.e),a=parseFloat(g("ed_amt").value);if(!a)return;
@@ -1489,6 +1530,10 @@ function rUserMod(view=null,_=null,switchId=null){
           <input type="checkbox" id="mailSum" ${cu.mailSummary?'checked':''} style="width:18px;height:18px;accent-color:#5b7f6b"/>
           סיכום חודשי במייל ביום האחרון של החודש
         </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#475569;margin-bottom:10px;cursor:pointer">
+          <input type="checkbox" id="mailWeek" ${cu.mailWeekly?'checked':''} style="width:18px;height:18px;accent-color:#6366f1"/>
+          &#10024; סיכום שבועי עם ניתוח AI והצעות לשיפור (ביום ראשון)
+        </label>
         ${(cu.reminders||[]).map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;margin-bottom:6px">
           <span style="font-size:12px;color:#b45309;white-space:nowrap">${r.type==='once'?fmDate(r.date)+'/'+(r.date||'').slice(2,4):'כל '+r.day+' בחודש'}</span>
           <span style="flex:1;font-size:13px;color:#2f2a24">${(r.text||'').replace(/</g,'&lt;')}</span>
@@ -1546,6 +1591,7 @@ function rUserMod(view=null,_=null,switchId=null){
     });
     g("signOut").onclick=fbSignOut;
     g("mailSum").onchange=()=>{cu.mailSummary=g("mailSum").checked;saveUsers();};
+    g("mailWeek").onchange=()=>{cu.mailWeekly=g("mailWeek").checked;saveUsers();};
     g("remType").onchange=()=>{const once=g("remType").value==='once';g("remDay").style.display=once?'none':'';g("remDate").style.display=once?'':'none';};
     g("addRem").onclick=()=>{
       const text=(g("remText").value||"").trim();if(!text){g("remText").focus();return;}
@@ -1617,35 +1663,13 @@ function rBudgetSuggest(){
     const recA=months.map(mo=>mo.ents[cat.id].filter(e=>e.recurring).reduce((s,e)=>s+(parseFloat(e.amount)||0),0));
     const avgVar=varA.length?varA.reduce((a,b)=>a+b,0)/varA.length:0;
     const avgRec=recA.length?recA.reduce((a,b)=>a+b,0)/recA.length:0;
-    const hasV=varA.some(v=>v>0),hasR=recA.some(v=>v>0);
     const curVar=cat.budget||0,curRec=cat.budgetRec||0;
-    let sugVar=curVar,sugRec=curRec,chV=0,chR=0,nV='',nR='';
-    if(hasV){
-      if(avgVar>curVar*1.05||curVar===0){sugVar=r50(avgVar*1.15);chV=1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
-      else if(curVar>0&&avgVar<curVar*0.7){sugVar=r50(avgVar*1.25);chV=-1;nV=`ממוצע ₪${fm(Math.round(avgVar))}`;}
-      else{nV=`ממוצע ₪${fm(Math.round(avgVar))} — מאוזן`;}
-    }else if(curVar>0){sugVar=0;chV=-1;nV='ללא שימוש ב-6 חודשים';}
-    if(hasR){
-      if(avgRec>curRec*1.05||curRec===0){sugRec=r50(avgRec*1.1);chR=1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
-      else if(curRec>0&&avgRec<curRec*0.7){sugRec=r50(avgRec*1.15);chR=-1;nR=`ממוצע ₪${fm(Math.round(avgRec))}`;}
-      else{nR=`ממוצע ₪${fm(Math.round(avgRec))} — מאוזן`;}
-    }else if(curRec>0){sugRec=0;chR=-1;nR='ללא הוצאות קבועות ב-6 חודשים';}
+    // Suggestions come only from the AI analysis; until it answers, nothing changes
+    const sugVar=curVar,sugRec=curRec,chV=0,chR=0,nV='ממוצע ₪'+fm(Math.round(avgVar)),nR='ממוצע ₪'+fm(Math.round(avgRec));
     return{cat,curVar,curRec,sugVar,sugRec,chV,chR,nV,nR,avgVar,avgRec,varA,recA};
   });
   const totalCur=S.cats.reduce((s,c)=>s+(c.budget||0)+(c.budgetRec||0),0);
-  let scaledForIncome=false;
-  {
-    let ts=sugs.reduce((s,x)=>s+x.sugVar+x.sugRec,0);
-    if(avgInc>0&&ts>avgInc*MAX_RATIO){
-      scaledForIncome=true;
-      const scale=(avgInc*MAX_RATIO)/ts;
-      sugs.forEach(x=>{
-        const nV2=r50(x.sugVar*scale),nR2=r50(x.sugRec*scale);
-        if(nV2!==x.sugVar){x.sugVar=nV2;x.chV=nV2<x.curVar?-1:nV2>x.curVar?1:0;}
-        if(nR2!==x.sugRec){x.sugRec=nR2;x.chR=nR2<x.curRec?-1:nR2>x.curRec?1:0;}
-      });
-    }
-  }
+  const scaledForIncome=false;
   const applyOne=(x)=>{
     const c=S.cats.find(c=>c.id===x.cat.id);if(!c)return;
     if(x.sugVar!==x.curVar){if(x.sugVar>0)c.budget=x.sugVar;else delete c.budget;}
@@ -1689,7 +1713,7 @@ function rBudgetSuggest(){
   };
   ih("m2",`<div class="overlay" id="bsO"><div class="modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div><div style="font-size:17px;font-weight:800;color:#2f2a24">&#128161; הצעות תקציב</div><div style="font-size:11px;color:#a39686">ניתוח ${N} חודשים — כולל חודש נוכחי</div></div>
+      <div><div style="font-size:17px;font-weight:800;color:#2f2a24">&#128161; הצעות תקציב</div><div style="font-size:11px;color:#a39686">ניתוח AI של ${N} החודשים האחרונים</div></div>
       <button id="cBS" style="background:#f3ece2;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#7d7265">&times;</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px">
@@ -1747,6 +1771,7 @@ function rBudgetSuggest(){
     }
   };
   doRender();
+  g("aiBS").click();
 }
 
 function doCSV(){
