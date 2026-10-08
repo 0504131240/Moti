@@ -293,6 +293,7 @@ function sv(){
   saveBudgets();
   fbSave();
 }
+function fm0(n){return fm(Math.round(parseFloat(n)||0));}
 function fm(n){return Number(n||0).toLocaleString("he-IL");}
 function today(){return new Date().toISOString().split("T")[0];}
 function fmDate(d){if(!d)return"";try{const p=d.split("-");return p[2]+"/"+p[1];}catch{return d;}}
@@ -613,22 +614,22 @@ function rMon(){
   const budCats=S.cats.filter(c=>!c.activeMonths||c.activeMonths.includes(S.month));
   const totBud=budCats.reduce((t,c)=>t+(c.budget||0)+(c.budgetRec||0),0);
   const budLeft=totBud-expTotal,budOv=totBud>0&&expTotal>totBud,budPct=totBud>0?Math.min(100,expTotal/totBud*100):0;
-  const mini=(l,v,c,extra='')=>`<div ${extra} style="flex:1;background:#f7f1e8;border-radius:14px;padding:9px 11px;${extra?'cursor:pointer':''}"><div style="font-size:11.5px;color:#8a7f72;display:flex;justify-content:space-between">${l}</div><div style="font-size:15.5px;font-weight:700;color:${c};margin-top:1px">${v}</div></div>`;
+  const mini=(l,v,c,extra='')=>`<div ${extra} style="flex:1;min-width:0;background:#f7f1e8;border-radius:14px;padding:9px 10px;${extra?'cursor:pointer':''}"><div style="font-size:11.5px;color:#8a7f72">${l}</div><div style="font-size:15px;font-weight:700;color:${c};margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v}</div></div>`;
   const incomeSec=`<div style="${card};padding:18px 18px 14px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:baseline">
       <span style="font-size:12.5px;color:#8a7f72">הוצאות מול תקציב</span>
       ${totBud>0?`<span style="font-size:12px;font-weight:600;color:${budOv?'#c2410c':'#5b7f6b'}">${Math.round(expTotal/totBud*100)}%</span>`:''}
     </div>
     <div style="display:flex;align-items:baseline;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
-      <span style="font-size:34px;font-weight:700;letter-spacing:-.8px;color:${budOv?'#c2410c':'#2f2a24'}">&#8362;${fm(expTotal)}</span>
-      <span style="font-size:15px;color:#8a7f72">מתוך &#8362;${fm(totBud)}</span>
+      <span style="font-size:clamp(26px,8vw,34px);font-weight:700;letter-spacing:-.8px;color:${budOv?'#c2410c':'#2f2a24'}">&#8362;${fm0(expTotal)}</span>
+      <span style="font-size:15px;color:#8a7f72">מתוך &#8362;${fm0(totBud)}</span>
     </div>
     ${totBud>0?`<div style="height:8px;border-radius:8px;background:#efe7db;overflow:hidden"><div style="height:100%;width:${budPct}%;background:${barColor(expTotal/totBud*100)};border-radius:8px"></div></div>
-    <div style="font-size:12px;color:${budOv?'#c2410c':'#8a7f72'};margin:6px 0 14px">${budOv?'חריגה של &#8362;'+fm(-budLeft)+' מהתקציב':'נותרו &#8362;'+fm(budLeft)+' בתקציב החודש'}</div>`:'<div style="font-size:12px;color:#8a7f72;margin-bottom:14px">לא הוגדר תקציב לקטגוריות</div>'}
+    <div style="font-size:12px;color:${budOv?'#c2410c':'#8a7f72'};margin:6px 0 14px">${budOv?'חריגה של &#8362;'+fm0(-budLeft)+' מהתקציב':'נותרו &#8362;'+fm0(budLeft)+' בתקציב החודש'}</div>`:'<div style="font-size:12px;color:#8a7f72;margin-bottom:14px">לא הוגדר תקציב לקטגוריות</div>'}
     <div style="display:flex;gap:8px">
-      ${mini('הכנסות','&#8362;'+fm(inc),'#4a6b58','id="addInc"')}
-      ${mini('הוצאות','&#8362;'+fm(expTotal+evtTot),'#2f2a24')}
-      ${mini('מאזן',(balance<0?'-':'')+'&#8362;'+fm(Math.abs(balance)),balance>=0?'#4a6b58':'#c2410c')}
+      ${mini('הכנסות','&#8362;'+fm0(inc),'#4a6b58','id="addInc"')}
+      ${mini('הוצאות','&#8362;'+fm0(expTotal+evtTot),'#2f2a24')}
+      ${mini('מאזן','<span dir="ltr">'+(balance<0?'-':'')+'&#8362;'+fm0(Math.abs(balance))+'</span>',balance>=0?'#4a6b58':'#c2410c')}
     </div>
   </div>`;
   const tile=(id,ic,l,on)=>`<button id="${id}" style="flex:1;padding:11px 4px 9px;border-radius:16px;border:1px solid ${on?'#c9d9ce':'#ece4d8'};background:${on?'#eef3ef':'#fffdf9'};cursor:pointer;font-family:inherit"><div style="font-size:19px;line-height:1">${ic}</div><div style="font-size:12.5px;font-weight:500;color:#2f2a24;margin-top:5px">${l}</div></button>`;
@@ -1779,16 +1780,18 @@ function rEventDetail(eid){
       <div style="flex:1;font-size:17px;font-weight:800;color:#2f2a24">${ev.name}</div>
       <button id="evdDel" style="background:#fff0f0;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;color:#cf5a3e;font-weight:600">מחק</button>
     </div>
-    <div style="background:${over?'#fbefe9':'#faf6ef'};border:1px solid ${over?'#f0cfc2':'#ece4d8'};border-radius:12px;padding:12px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-        <div id="evBudBox" style="text-align:center"><div style="font-size:10px;color:#a39686;margin-bottom:2px">תקציב</div><div style="font-size:16px;font-weight:800;color:#2f2a24">&#8362;${fm(ev.budget)} <button id="evBudEd" title="ערוך תקציב" style="background:transparent;border:none;cursor:pointer;font-size:13px;padding:0;color:#5b7f6b">&#9998;</button></div></div>
-        <div style="text-align:center"><div style="font-size:10px;color:#4f8a68;margin-bottom:2px">&#10003; שולם</div><div style="font-size:16px;font-weight:800;color:#4f8a68">&#8362;${fm(paidAmt)}</div></div>
-        <div style="text-align:center"><div style="font-size:10px;color:#f59e0b;margin-bottom:2px">&#9676; ממתין</div><div style="font-size:16px;font-weight:800;color:#f59e0b">&#8362;${fm(pendAmt)}</div></div>
-        <div style="text-align:center"><div style="font-size:10px;color:${over?'#cf5a3e':'#7d7265'};margin-bottom:2px">${over?'חריגה':'נותר'}</div><div style="font-size:16px;font-weight:800;color:${over?'#cf5a3e':'#7d7265'}">&#8362;${fm(Math.abs(rem))}</div></div>
+    <div style="background:#faf6ef;border:1px solid ${over?'#f0cfc2':'#ece4d8'};border-radius:18px;padding:14px 14px 12px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px">
+        <div id="evBudBox" style="min-width:0"><div style="font-size:11.5px;color:#8a7f72">תקציב האירוע</div><div style="font-size:24px;font-weight:700;color:#2f2a24;white-space:nowrap">&#8362;${fm0(ev.budget)} <button id="evBudEd" title="ערוך תקציב" style="background:transparent;border:none;cursor:pointer;font-size:14px;padding:0;color:#5b7f6b;vertical-align:middle">&#9998;</button></div></div>
+        <div style="text-align:left;flex-shrink:0"><div style="font-size:11.5px;color:${over?'#c2410c':'#8a7f72'}">${over?'חריגה':'נותר'}</div><div style="font-size:18px;font-weight:700;color:${over?'#c2410c':'#4a6b58'};white-space:nowrap">&#8362;${fm0(Math.abs(rem))}</div></div>
       </div>
       <div style="background:#ece4d8;border-radius:6px;height:8px;position:relative;overflow:hidden">
         <div style="position:absolute;right:0;top:0;height:8px;background:#4f8a68;width:${paidPct}%;border-radius:6px 0 0 6px;transition:width .3s"></div>
-        <div style="position:absolute;right:${paidPct}%;top:0;height:8px;background:#fbbf24;width:${pendPct}%"></div>
+        <div style="position:absolute;right:${paidPct}%;top:0;height:8px;background:#e8b04a;width:${pendPct}%"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <div style="flex:1;min-width:0;background:#fffdf9;border-radius:12px;padding:8px 10px"><div style="font-size:11px;color:#4f8a68">&#10003; שולם</div><div style="font-size:15px;font-weight:700;color:#3f7356;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&#8362;${fm0(paidAmt)}</div></div>
+        <div style="flex:1;min-width:0;background:#fffdf9;border-radius:12px;padding:8px 10px"><div style="font-size:11px;color:#c08a2e">&#9676; ממתין לתשלום</div><div style="font-size:15px;font-weight:700;color:#b07a1f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&#8362;${fm0(pendAmt)}</div></div>
       </div>
     </div>
     <div style="font-size:12px;font-weight:700;color:#7d7265;margin-bottom:8px">הוצאות (${(ev.expenses||[]).length})</div>
