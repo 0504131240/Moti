@@ -1,13 +1,13 @@
 // Daily mail job, run by Vercel Cron (see vercel.json).
 // Sends each profile's due reminders and, on the last day of its budget cycle,
-// a monthly summary — to every email listed on the profile.
+// a monthly summary with Claude's analysis — to every email listed on the profile.
 //
 // Environment variables (Vercel → Project → Settings → Environment Variables):
 //   FIREBASE_SERVICE_ACCOUNT  JSON key of a Firebase service account
 //   GMAIL_USER                Gmail address the mails are sent from
 //   GMAIL_APP_PASSWORD        Google "app password" for that address
 //   CRON_SECRET               any random string; Vercel sends it with cron calls
-//   ANTHROPIC_API_KEY         for the Claude analysis in the weekly summary (optional)
+//   ANTHROPIC_API_KEY         for the Claude analysis in the monthly summary (optional)
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const N = require('./_lib/notify');
@@ -48,21 +48,12 @@ module.exports = async (req, res) => {
         ]);
         const s = N.summarize(yDoc.exists ? yDoc.data() : null, eDoc.exists ? eDoc.data().events : [], cycle);
         const label = N.monthLabel(cycle.month, p.monthStart);
-        await mail.sendMail({ from, to, subject: `📊 סיכום חודש ${label} ${cycle.year}`, html: N.summaryHtml(p.name, label, cycle.year, s) });
-        sent++;
-      }
-      // Weekly summary with Claude's analysis, on Sundays
-      if (p.mailWeekly && N.isSunday(t)) {
-        const last = N.addDays(t, -1);
-        const years = [...new Set([N.addDays(t, -7).y, last.y, N.bucketOf(last, p.monthStart).y])];
-        const docs = {};
-        await Promise.all(years.map(async y => { const s = await doc.ref.collection('data').doc('y' + y).get(); docs[y] = s.exists ? s.data() : null; }));
-        const w = N.weeklyData(docs, t, p.monthStart);
+        // Claude's analysis of the month; the summary goes out without it if the call fails
         let ai = null;
         if (process.env.ANTHROPIC_API_KEY) {
-          try { ai = await askClaude(N.weeklyPrompt(w), N.AI_WEEKLY_SCHEMA, 4000); } catch (e) { console.error('weekly ai', doc.id, e.message); }
+          try { ai = await askClaude(N.monthlyPrompt(label, cycle.year, s), N.AI_SUMMARY_SCHEMA, 4000); } catch (e) { console.error('monthly ai', doc.id, e.message); }
         }
-        await mail.sendMail({ from, to, subject: `📅 סיכום שבועי: ₪${Math.round(w.weekTotal).toLocaleString('he-IL')} השבוע`, html: N.weeklyHtml(p.name, w, ai) });
+        await mail.sendMail({ from, to, subject: `📊 סיכום חודש ${label} ${cycle.year}`, html: N.summaryHtml(p.name, label, cycle.year, s, ai) });
         sent++;
       }
       if (sent) await doc.ref.update({ lastMailDay: t.str });
