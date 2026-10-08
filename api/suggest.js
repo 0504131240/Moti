@@ -1,6 +1,6 @@
-// AI budget suggestions. The app sends a numeric summary of the last months
-// (category names, monthly spend, income, current budgets); this function checks
-// the Google sign-in, applies a daily limit, and asks Claude for a budget per category.
+// AI budget suggestions. The app sends the last months' data (categories, budgets,
+// monthly totals and income, each expense with its description, and events); this function checks
+// the Google sign-in, applies a weekly limit, and asks Claude for a budget per category.
 //
 // Environment variables (Vercel): ANTHROPIC_API_KEY, FIREBASE_SERVICE_ACCOUNT,
 // optional ANTHROPIC_MODEL (default claude-opus-5-5) and AI_WEEKLY_LIMIT (default 1).
@@ -42,18 +42,54 @@ const SCHEMA = {
 
 const num = v => Math.round(Number(v) || 0);
 
+const str = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+const arr = v => (Array.isArray(v) ? v : []);
+const MAX_ITEMS = 1500; // expense lines per request, to keep the prompt bounded
+
+// Keep the largest `cap` items, in their original order; report how many were left out
+function capItems(items, cap) {
+  if (items.length <= cap) return { items, omitted: 0 };
+  const keep = new Set(items.map((it, i) => [it, i]).sort((a, b) => b[0][2] - a[0][2]).slice(0, cap).map(x => x[1]));
+  return { items: items.filter((_, i) => keep.has(i)), omitted: items.length - cap };
+}
+
 // Keep only the fields we expect, with sane sizes
 function clean(body) {
-  const cats = (Array.isArray(body?.cats) ? body.cats : []).slice(0, 40).map(c => ({
-    id: num(c.id),
-    name: String(c.name || '').slice(0, 40),
-    budget: num(c.budget),
-    budgetRec: num(c.budgetRec),
-    variable: (Array.isArray(c.variable) ? c.variable : []).slice(0, 12).map(num),
-    recurring: (Array.isArray(c.recurring) ? c.recurring : []).slice(0, 12).map(num),
+  const raw = arr(body?.cats).slice(0, 40);
+  const perCat = Math.max(30, Math.floor(MAX_ITEMS / (raw.length || 1)));
+  const cats = raw.map(c => {
+    // [month index, description, amount, sub-category?, 1 if recurring?]
+    const items = arr(c.items).filter(Array.isArray).map(it => {
+      const row = [Math.min(11, Math.max(0, num(it[0]))), str(it[1], 40), num(it[2])];
+      if (it[3] || it[4]) row.push(str(it[3], 30));
+      if (it[4]) row.push(1);
+      return row;
+    });
+    const { items: kept, omitted } = capItems(items, perCat);
+    const out = {
+      id: num(c.id),
+      name: str(c.name, 40),
+      budget: num(c.budget),
+      budgetRec: num(c.budgetRec),
+      variable: arr(c.variable).slice(0, 12).map(num),
+      recurring: arr(c.recurring).slice(0, 12).map(num),
+    };
+    const subs = arr(c.subs).slice(0, 20).map(s => ({ name: str(s?.name, 30), budget: num(s?.budget) })).filter(s => s.name);
+    if (subs.length) out.subs = subs;
+    if (kept.length) out.items = kept;
+    if (omitted) out.itemsOmitted = omitted;
+    return out;
+  });
+  const months = arr(body?.months).slice(0, 12).map(m => ({ label: str(m?.label, 20), income: num(m?.income) }));
+  // Events: [description, amount, paid so far, date]
+  const events = arr(body?.events).slice(0, 15).map(ev => ({
+    name: str(ev?.name, 40),
+    budget: num(ev?.budget),
+    expenses: arr(ev?.expenses).filter(Array.isArray).slice(0, 40).map(e => [str(e[0], 40), num(e[1]), num(e[2]), str(e[3], 10)]),
   }));
-  const months = (Array.isArray(body?.months) ? body.months : []).slice(0, 12).map(m => ({ label: String(m.label || '').slice(0, 20), income: num(m.income) }));
-  return { cats, months };
+  const data = { cats, months };
+  if (events.length) data.events = events;
+  return data;
 }
 
 module.exports = async (req, res) => {
@@ -90,14 +126,20 @@ module.exports = async (req, res) => {
     return res.status(429).json({ error: 'ניצלת את הניתוח השבועי. ניתוח חדש יהיה אפשרי מיום ראשון.', next: nextWeek });
   }
 
-  const prompt = `אתה יועץ כלכלי למשפחה ישראלית. לפניך סיכום ההוצאות של המשפחה ב-${data.months.length} החודשים האחרונים (החודש הראשון הוא הנוכחי, ייתכן שהוא חלקי).
-לכל קטגוריה: התקציב הנוכחי להוצאות משתנות (budget) ולהוצאות קבועות (budgetRec), וסכום ההוצאות בכל חודש, משתנות (variable) וקבועות (recurring), באותו סדר חודשים.
+  const prompt = `אתה יועץ כלכלי למשפחה ישראלית. לפניך נתוני ההוצאות של המשפחה ב-${data.months.length} החודשים האחרונים (months: החודש הראשון, אינדקס 0, הוא הנוכחי וייתכן שהוא חלקי; לכל חודש ההכנסה שלו).
+לכל קטגוריה (cats):
+- name: שם הקטגוריה; budget: התקציב הנוכחי להוצאות משתנות; budgetRec: התקציב הנוכחי להוצאות קבועות.
+- variable / recurring: סכום ההוצאות המשתנות / הקבועות בכל חודש, באותו סדר של months.
+- subs: תתי-הקטגוריות ותקציבן (אם יש).
+- items: כל הוצאה בנפרד, בפורמט [אינדקס חודש, תיאור ההוצאה כפי שהמשפחה כתבה, סכום, תת-קטגוריה, 1 אם היא הוצאה קבועה]. itemsOmitted: מספר הוצאות קטנות שלא נכללו ברשימה (הן כן כלולות בסכומים).
+events: אירועים מיוחדים (חתונה, חג וכו') עם תקציב משלהם, וההוצאות שלהם בפורמט [תיאור, סכום, שולם עד כה, תאריך]. הם לא חלק מתקציב הקטגוריות, אבל משפיעים על היכולת לחסוך.
 
 ${JSON.stringify(data)}
 
 הצע תקציב חודשי ריאלי לכל קטגוריה (גם משתנה וגם קבוע, בשקלים שלמים, מעוגל ל-50), שמבוסס על ההוצאות בפועל, מתחשב במגמות ובחודשים חריגים, ומשאיר חיסכון של לפחות 15% מההכנסה הממוצעת אם אפשר.
+השתמש בתיאורי ההוצאות כדי להבין על מה הכסף הולך בפועל: חשבונות ומנויים שחוזרים כל חודש, הוצאות חד-פעמיות שלא צפויות לחזור (ואל תבנה עליהן תקציב), סוגי הוצאה או בתי עסק שמתייקרים, והוצאות שנרשמו כנראה בקטגוריה לא מתאימה.
 אל תשנה בלי סיבה תקציב שמתאים להוצאות. קטגוריה בשם "צדקה" היא נתינה מתוך עיקרון, אל תציע לקצץ בה.
-החזר לכל קטגוריה id, budget, budgetRec ונימוק קצר בעברית (עד 12 מילים). ב-summary כתוב משפט או שניים על המצב הכללי, וב-tips עד 3 טיפים מעשיים וקצרים. הכל בעברית.`;
+החזר לכל קטגוריה id, budget, budgetRec ונימוק קצר בעברית (עד 12 מילים, ואפשר להזכיר בו הוצאה ספציפית). ב-summary כתוב משפט או שניים על המצב הכללי, וב-tips עד 3 טיפים מעשיים וקצרים שמתייחסים להוצאות ספציפיות מהנתונים. הכל בעברית.`;
 
   try {
     const out = await askClaude(prompt, SCHEMA);
