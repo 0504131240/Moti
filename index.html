@@ -1452,14 +1452,6 @@ function rUserMod(view=null,_=null,switchId=null){
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:18px">נשלח בבוקר לכל המיילים שברשימה למעלה</div>
 
-        <div style="${others.length?'border-top:1px solid #f1f5f9;padding-top:14px;margin-top:6px':''}">
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;margin-bottom:8px">&#43; משתמש חדש</div>
-          <div style="display:flex;gap:8px">
-            <input class="inp" id="newUN" placeholder="שם משתמש חדש" style="flex:1;padding:9px 12px"/>
-            <button id="addU" style="padding:9px 14px;border-radius:10px;border:none;color:#fff;background:linear-gradient(135deg,#10b981,#059669);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">+ הוסף</button>
-          </div>
-          <button id="claimBtn" style="background:transparent;border:none;color:#6366f1;font-size:12px;cursor:pointer;text-decoration:underline;margin-top:8px;padding:0">שייך פרופיל מהגרסה הקודמת</button>
-        </div>
 
         <div style="border-top:1px solid #f1f5f9;padding-top:14px;margin-top:14px;display:flex;align-items:center;gap:8px">
           <span style="flex:1;font-size:12px;color:#64748b;direction:ltr;text-align:left">${myEmail()}</span>
@@ -1488,10 +1480,6 @@ function rUserMod(view=null,_=null,switchId=null){
       sv();const p=todayPeriod();S.month=p.month;S.year=p.year;
       ld();fbListen(S.year);ih("m2","");rAll();
     };
-    g("addU").onclick=()=>{
-      const name=(g("newUN").value||"").trim();if(!name)return;
-      USERS.push({id:'u'+Date.now(),name,emails:[myEmail()]});saveUsers();rUserMod('edit');
-    };
     g("addEm").onclick=()=>{
       const em=(g("shareEm").value||"").trim().toLowerCase();
       if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))return;
@@ -1503,7 +1491,6 @@ function rUserMod(view=null,_=null,switchId=null){
       if(b.dataset.em===myEmail())location.reload();else rUserMod('edit');
     });
     g("signOut").onclick=fbSignOut;
-    g("claimBtn").onclick=()=>rClaim(true);
     g("mailSum").onchange=()=>{cu.mailSummary=g("mailSum").checked;saveUsers();};
     g("remType").onchange=()=>{const once=g("remType").value==='once';g("remDay").style.display=once?'none':'';g("remDate").style.display=once?'':'none';};
     g("addRem").onclick=()=>{
