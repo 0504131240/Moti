@@ -590,6 +590,8 @@ function rMaaser(){
   g("maAmt").onkeydown=e=>{if(e.key==="Enter")g("maGive").click();};
   g("maO").onclick=e=>{if(e.target.id==="maO")ih("m2","");};
 }
+// Progress bar color by how much of the budget is used: blue, orange from 80%, red from 100%
+function barColor(p){return p>=100?'#d1453b':p>=80?'#e48a2f':'#4a7fc1';}
 function rMon(){
   const {month:nowM,year:nowY}=todayPeriod();
   const isNow=S.month===nowM&&S.year===nowY;
@@ -621,10 +623,10 @@ function rMon(){
       <span style="font-size:34px;font-weight:700;letter-spacing:-.8px;color:${budOv?'#c2410c':'#2f2a24'}">&#8362;${fm(expTotal)}</span>
       <span style="font-size:15px;color:#8a7f72">מתוך &#8362;${fm(totBud)}</span>
     </div>
-    ${totBud>0?`<div style="height:8px;border-radius:8px;background:#efe7db;overflow:hidden"><div style="height:100%;width:${budPct}%;background:${budOv?'#c2410c':budPct>=85?'#d98a4e':'#5b7f6b'};border-radius:8px"></div></div>
+    ${totBud>0?`<div style="height:8px;border-radius:8px;background:#efe7db;overflow:hidden"><div style="height:100%;width:${budPct}%;background:${barColor(expTotal/totBud*100)};border-radius:8px"></div></div>
     <div style="font-size:12px;color:${budOv?'#c2410c':'#8a7f72'};margin:6px 0 14px">${budOv?'חריגה של &#8362;'+fm(-budLeft)+' מהתקציב':'נותרו &#8362;'+fm(budLeft)+' בתקציב החודש'}</div>`:'<div style="font-size:12px;color:#8a7f72;margin-bottom:14px">לא הוגדר תקציב לקטגוריות</div>'}
     <div style="display:flex;gap:8px">
-      ${mini('<span>הכנסות</span><span style="color:#5b7f6b;font-weight:600">+ הוסף</span>','&#8362;'+fm(inc),'#4a6b58','id="addInc"')}
+      ${mini('הכנסות','&#8362;'+fm(inc),'#4a6b58','id="addInc"')}
       ${mini('הוצאות','&#8362;'+fm(expTotal+evtTot),'#2f2a24')}
       ${mini('מאזן',(balance<0?'-':'')+'&#8362;'+fm(Math.abs(balance)),balance>=0?'#4a6b58':'#c2410c')}
     </div>
@@ -650,7 +652,7 @@ function rMon(){
     const recCount=allEnt.filter(e=>e.recurring).length;
     const tr=trendHTML(cat.id);
     const isCh=charityCat()?.id===cat.id,mz=isCh?maaserOf(S.month):null;
-    const barC=ov?'#c2410c':cat.color;
+    const barC=barColor(bud>0?tot/bud*100:0);
     return`<div data-catid="${cat.id}" style="padding:14px 16px;border-bottom:1px solid #f0e8dc">
       <div style="display:flex;align-items:center;gap:11px">
         <div class="oE" data-c="${cat.id}" style="width:36px;height:36px;border-radius:11px;background:${cat.color}22;color:${cat.color};display:grid;place-items:center;font-weight:700;font-size:15px;flex-shrink:0;cursor:pointer">${(cat.name||'?').charAt(0)}</div>
@@ -675,7 +677,7 @@ function rMon(){
       ${bud>0?`<div style="height:5px;border-radius:5px;background:#efe7db;margin-top:11px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barC};border-radius:5px"></div></div>
       <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#8a7f72;margin-top:6px"><span>${ov?'חריגה של &#8362;'+fm(-rem):'נותרו &#8362;'+fm(rem)}</span><span>${Math.round(tot/bud*100)}%</span></div>`:''}
       ${mz&&mz.due>0?`<div style="font-size:11.5px;color:${mz.left>0?'#9e5868':'#4a6b58'};margin-top:6px">${mz.left>0?'מעשר: נשאר להשלים &#8362;'+fm(mz.left):'המעשר הושלם &#10004;'}</div>`:''}
-      ${(cat.subs||[]).some(s=>s.budget>0)?`<div style="border-top:1px solid #f3ece2;margin-top:8px;padding-top:6px">${(cat.subs||[]).filter(s=>s.budget>0).map(s=>{const sT=ent.filter(e=>e.subCat===s.id).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);const sP=Math.min((sT/s.budget)*100,100);const sOv=sT>s.budget;return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:11px;color:#7d7265;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</span><span style="font-size:11px;font-weight:600;color:${sOv?'#cf5a3e':'#5b7f6b'};flex-shrink:0">&#8362;${fm(sT)}</span><div style="width:48px;height:4px;background:#f3ece2;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${sP}%;background:${sP>=100?'#cf5a3e':cat.color};border-radius:2px"></div></div><span style="font-size:10px;color:#a39686;flex-shrink:0">${fm(s.budget)}</span></div>`;}).join('')}</div>`:''}
+      ${(cat.subs||[]).some(s=>s.budget>0)?`<div style="border-top:1px solid #f3ece2;margin-top:8px;padding-top:6px">${(cat.subs||[]).filter(s=>s.budget>0).map(s=>{const sT=ent.filter(e=>e.subCat===s.id).reduce((a,e)=>a+(parseFloat(e.amount)||0),0);const sP=Math.min((sT/s.budget)*100,100);const sOv=sT>s.budget;return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:11px;color:#7d7265;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</span><span style="font-size:11px;font-weight:600;color:${sOv?'#cf5a3e':'#5b7f6b'};flex-shrink:0">&#8362;${fm(sT)}</span><div style="width:48px;height:4px;background:#f3ece2;border-radius:2px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${sP}%;background:${barColor(sP)};border-radius:2px"></div></div><span style="font-size:10px;color:#a39686;flex-shrink:0">${fm(s.budget)}</span></div>`;}).join('')}</div>`:''}
     </div>`;
   }).join("");
 
@@ -996,7 +998,7 @@ function rEntMod(){
       <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">הוצאה</div><div style="font-size:15px;font-weight:700;color:${ov?'#cf5a3e':'#2f2a24'}">&#8362;${fm(tot)}</div></div>
       <div style="flex:1;background:#faf6ef;border-radius:9px;padding:9px;text-align:center;border:1px solid #ece4d8"><div style="font-size:10px;color:#a39686;margin-bottom:2px">יתרה</div><div style="font-size:15px;font-weight:700;color:${rem<0?'#cf5a3e':'#4f8a68'}">${rem<0?fm(Math.abs(rem))+'-&#8362;':'&#8362;'+fm(rem)}</div></div>
     </div>
-    <div style="height:5px;background:#f3ece2;border-radius:3px;margin-bottom:10px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=100?'#cf5a3e':pct>=85?'#d98a4e':'#4f8a68'};border-radius:3px"></div></div>
+    <div style="height:5px;background:#f3ece2;border-radius:3px;margin-bottom:10px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor(pct)};border-radius:3px"></div></div>
     ${subBreakdown}
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <input class="inp" id="entSearch" placeholder="&#128269; חיפוש..." style="flex:1;padding:7px 10px;font-size:12px" value="${q}"/>
