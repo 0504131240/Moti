@@ -89,6 +89,7 @@ function pDoc(name,pid){return _doc(fdb,'profiles',pid||CUR_UID,'data',name);}
 function myEmail(){return(AUTH_USER?.email||'').toLowerCase();}
 let USERS=[],CUR_UID='u1';
 let EVENTS=[];
+let INBOX=[],unsubInbox=null; // charges sent from the phone, waiting for approval
 function loadEvents(){try{EVENTS=JSON.parse(localStorage.getItem('bdg_evt_'+CUR_UID)||'[]');}catch{EVENTS=[];}}
 function saveEvents(){
   try{localStorage.setItem('bdg_evt_'+CUR_UID,JSON.stringify(EVENTS));}catch{}
@@ -161,7 +162,17 @@ async function fbLoadProfiles(){
 }
 function reloadCurUser(){
   ld();loadEvents();
-  if(db){fbListen(S.year);fbLoadBudgets();fbLoadEvents();}
+  if(db){fbListen(S.year);fbLoadBudgets();fbLoadEvents();fbListenInbox();}
+}
+function fbListenInbox(){
+  if(unsubInbox){unsubInbox();unsubInbox=null;}
+  INBOX=[];
+  if(!db||!_onSnapshot)return;
+  unsubInbox=_onSnapshot(pDoc('inbox'),snap=>{
+    INBOX=snap.exists()?(snap.data().items||[]):[];
+    if(g('inbO'))rInbox();
+    else if(!GATE&&!['m1','m2','m3'].some(id=>g(id)?.innerHTML.trim()))rAll();
+  },e=>console.warn('FB inbox:',e));
 }
 function fbSave(){
   if(!db||!_setDoc||!_doc)return;
@@ -606,6 +617,88 @@ function rCnt(){S.view==="monthly"?rMon():rYr();}
 
 // Maaser: a tenth of the month's income, minus what was given (the "צדקה" category)
 function maaserOf(m){const inc=incT(m),due=Math.round(inc/10),given=ct(m,charityCat()?.id);return{inc,due,given,left:due-given};}
+// ---------- Charges from the phone (MacroDroid → /api/ingest → data/inbox) ----------
+const normD=t=>String(t||'').toLowerCase().replace(/["'״׳`]/g,'').replace(/\s+/g,' ').trim();
+// Category and description for a business name, from the expenses already recorded
+function guessCharge(merchant){
+  const m=normD(merchant),base=normD(String(merchant||'').split(/\s+-\s+/)[0]);
+  const tally={};
+  const look=mData=>{for(let mo=0;mo<12;mo++){const md=mData?.[mo];if(!md)continue;
+    S.cats.forEach(c=>(md[c.id]?.entries||[]).forEach(e=>{const d=normD(e.desc);if(d.length<3)return;
+      const score=d===m?3:d===base?2:(m.includes(d)||d.includes(base)&&base.length>=3)?1:0;
+      if(!score)return;const k=c.id+'|'+e.desc;tally[k]=(tally[k]||0)+score;}));}};
+  look(S.mData);
+  try{look(JSON.parse(localStorage.getItem(sk(S.year-1))||'{}').mData);}catch{}
+  const best=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+  if(!best)return{cat:null,desc:String(merchant||'').split(/\s+-\s+/)[0]};
+  const i=best[0].indexOf('|');
+  return{cat:parseInt(best[0].slice(0,i)),desc:best[0].slice(i+1)};
+}
+async function inboxRemove(id){
+  INBOX=INBOX.filter(x=>x.id!==id);
+  if(!db)return;
+  try{await _F.runTransaction(fdb,async tx=>{const ref=pDoc('inbox'),sn=await tx.get(ref);tx.set(ref,{items:(sn.exists()?sn.data().items||[]:[]).filter(x=>x.id!==id)});});}
+  catch(e){console.warn('FB inbox remove:',e);}
+}
+function addExpenseEntry(catId,e){
+  const b=dateBucket(e.date);
+  if(b.y===S.year){
+    if(!S.mData[b.m])S.mData[b.m]={income:[]};if(!S.mData[b.m][catId])S.mData[b.m][catId]={entries:[]};
+    S.mData[b.m][catId].entries.push(e);sv();
+  }else editYear(b.y,d=>{
+    if(!d.mData[b.m])d.mData[b.m]={income:[]};if(!d.mData[b.m][catId])d.mData[b.m][catId]={entries:[]};
+    d.mData[b.m][catId].entries.push(e);
+    if(!d.cats.find(c=>c.id===catId)){const c=S.cats.find(c=>c.id===catId);if(c)d.cats.push({...c});}
+  });
+}
+function rInbox(){
+  if(!INBOX.length){ih("m2","");rAll();return;}
+  const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const curSym={ILS:'&#8362;',USD:'$',EUR:'&euro;'};
+  const items=[...INBOX].sort((a,b)=>b.at-a.at);
+  ih("m2",`<div class="overlay" id="inbO"><div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span style="font-size:17px;font-weight:800;color:#2f2a24">&#128276; חיובים ממתינים</span>
+      <button id="inbX" style="background:#f3ece2;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;color:#7d7265">&times;</button>
+    </div>
+    <div style="font-size:12px;color:#a39686;margin-bottom:12px">התקבלו מההתראות בטלפון. בדוק, בחר קטגוריה ואשר.</div>
+    ${items.map(it=>{const gs=guessCharge(it.merchant);const foreign=it.cur&&it.cur!=='ILS';
+      return`<div class="inbIt" data-id="${it.id}" style="border:1px solid #ece4d8;border-radius:14px;padding:12px;margin-bottom:10px;background:#fffdf9">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px">
+        <span style="font-size:18px;font-weight:800;color:${it.credit?'#4f8a68':'#2f2a24'}">${it.credit?'זיכוי ':''}${curSym[it.cur]||''}${fm(it.amount)}</span>
+        <span style="font-size:12px;color:#a39686">${fmDate(it.date)} · ${new Date(it.at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+      <div style="font-size:11.5px;color:#a39686;margin-bottom:8px;line-height:1.5">${esc(it.raw)}</div>
+      ${foreign?`<div style="font-size:12px;color:#cf5a3e;margin-bottom:6px">החיוב במטבע חוץ — עדכן את הסכום בשקלים</div>`:''}
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input class="inp ibD" value="${esc(gs.desc||it.merchant)}" placeholder="תיאור" style="flex:1;min-width:0;padding:8px 10px;font-size:13px"/>
+        <input class="inp ibA" type="number" inputmode="decimal" value="${it.amount}" style="width:90px;padding:8px 10px;font-size:13px;text-align:center"/>
+      </div>
+      <select class="inp ibC" style="width:100%;padding:8px 10px;font-size:13px;margin-bottom:8px">
+        <option value="">בחר קטגוריה…</option>
+        ${S.cats.map(c=>`<option value="${c.id}"${c.id===gs.cat?' selected':''}>${esc(c.name)}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:6px">
+        <button class="ibOk" style="flex:2;padding:9px;border-radius:10px;border:none;background:#5b7f6b;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">&#10004; הוסף להוצאות</button>
+        <button class="ibNo" style="flex:1;padding:9px;border-radius:10px;border:1px solid #ece4d8;background:#fff;color:#7d7265;font-size:13px;cursor:pointer;font-family:inherit">התעלם</button>
+      </div>
+    </div>`;}).join('')}
+  </div></div>`);
+  g("inbX").onclick=()=>{ih("m2","");rAll();};
+  document.querySelectorAll(".inbIt").forEach(el=>{
+    const it=INBOX.find(x=>String(x.id)===el.dataset.id);if(!it)return;
+    el.querySelector(".ibOk").onclick=async()=>{
+      const sel=el.querySelector(".ibC"),cat=parseInt(sel.value);
+      if(!cat){sel.style.borderColor='#cf5a3e';sel.focus();return;}
+      const a=Math.round((parseFloat(el.querySelector(".ibA").value)||0)*100)/100;if(!a){el.querySelector(".ibA").focus();return;}
+      const desc=el.querySelector(".ibD").value.trim()||it.merchant||'';
+      addExpenseEntry(cat,{id:Date.now(),desc,amount:it.credit?-Math.abs(a):a,date:it.date,recurring:false,subCat:null});
+      await inboxRemove(it.id);rInbox();
+    };
+    el.querySelector(".ibNo").onclick=async()=>{await inboxRemove(it.id);rInbox();};
+  });
+}
+
 function rMaaser(){
   const r=maaserOf(S.month);
   let yDue=0,yGiven=0;for(let m=0;m<12;m++){const x=maaserOf(m);yDue+=x.due;yGiven+=x.given;}
@@ -759,6 +852,7 @@ function rMon(){
   const small='padding:8px 14px;border-radius:12px;border:1px solid #e6dccd;background:#fffdf9;color:#2f2a24;font-size:12.5px;cursor:pointer;font-family:inherit';
   ih("cnt",`
     ${monNav}
+    ${INBOX.length?`<button id="inboxBar" style="display:flex;align-items:center;gap:8px;width:100%;margin:0 0 10px;padding:11px 14px;border-radius:14px;border:1px solid #e9d8b4;background:#fbf5e8;color:#8a6420;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:right"><span style="font-size:17px">&#128276;</span><span style="flex:1">${INBOX.length===1?'חיוב אחד ממתין':INBOX.length+' חיובים ממתינים'} לאישור</span><span style="font-size:12px;font-weight:600">&#8592; הצג</span></button>`:''}
     <div class="monGrid"><div class="monSide">
     ${incomeSec}
     ${quick}
@@ -792,6 +886,7 @@ function rMon(){
   g("addInc").onclick=()=>rIncMod();
   g("maaserBtn").onclick=()=>rMaaser();
   g("addExpBtn").onclick=()=>rExpMod();
+  if(g("inboxBar"))g("inboxBar").onclick=()=>rInbox();
   g("qIns").onclick=()=>{S.showIns=!S.showIns;rMon();};
   g("oEvt").onclick=()=>rEvents();
   g("oSrch").onclick=()=>rSearch();
@@ -1560,6 +1655,24 @@ function rUserMod(view=null,_=null,switchId=null){
         </div>
         <div style="font-size:11px;color:#a39686;margin-bottom:18px">רק מי שמופיע כאן יכול לראות ולערוך את הנתונים</div>
 
+        <div style="font-size:10px;font-weight:700;color:#a39686;letter-spacing:.8px;margin-bottom:6px">&#128179; קליטת חיובים מהטלפון</div>
+        ${cu.ingestKey?`<div style="font-size:12px;color:#5e554a;margin-bottom:6px;line-height:1.6">ההתראות על חיובים (מקס / Google Wallet) נשלחות לכתובת הזו ומופיעות באפליקציה לאישור. הכתובת אישית — אל תשתף אותה.</div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input class="inp" id="ingUrl" readonly value="${location.origin}/api/ingest?key=${cu.ingestKey}" style="flex:1;min-width:0;padding:8px 10px;font-size:11px;direction:ltr"/>
+          <button id="ingCopy" style="padding:8px 12px;border-radius:10px;border:none;background:#5b7f6b;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">העתק</button>
+        </div>
+        <details style="font-size:12px;color:#5e554a;margin-bottom:6px;line-height:1.7"><summary style="cursor:pointer;color:#5b7f6b;font-weight:700">איך מגדירים באנדרואיד (MacroDroid, חינם)</summary>
+          <ol style="padding-right:18px;margin:6px 0">
+            <li>מתקינים את MacroDroid מ-Google Play ופותחים מאקרו חדש.</li>
+            <li>טריגר: <b>התראה ← התראה התקבלה</b>, ובוחרים את האפליקציות max ו-Google Wallet. מאשרים ל-MacroDroid גישה להתראות.</li>
+            <li>פעולה: <b>אינטרנט ← בקשת HTTP</b>. שיטה POST, וב-URL מדביקים את הכתובת שהעתקת.</li>
+            <li>בלשונית <b>Query parameters</b> מוסיפים שני פרמטרים: <span dir="ltr">title</span> עם כותרת ההתראה, ו-<span dir="ltr">text</span> עם טקסט ההתראה (בוחרים אותם מכפתור ה-"…" של Magic Text).</li>
+            <li>שומרים. מעכשיו כל חיוב יופיע כאן בפס "חיובים ממתינים".</li>
+          </ol></details>
+        <button id="ingOff" style="padding:6px 12px;border-radius:8px;border:1px solid #f0cfc2;background:#fbefe9;color:#cf5a3e;font-size:12px;cursor:pointer;margin-bottom:18px">בטל את הכתובת</button>`
+        :`<div style="font-size:12px;color:#a39686;margin-bottom:8px;line-height:1.6">כל תשלום בכרטיס יופיע באפליקציה לאישור, לפי ההתראה של מקס או Google Wallet בטלפון.</div>
+        <button id="ingOn" style="padding:8px 14px;border-radius:10px;border:none;background:#5b7f6b;color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:18px">הפעל קליטת חיובים</button>`}
+
         <div style="font-size:10px;font-weight:700;color:#a39686;letter-spacing:.8px;margin-bottom:6px">&#128231; מיילים ותזכורות</div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5e554a;margin-bottom:10px;cursor:pointer">
           <input type="checkbox" id="mailSum" ${cu.mailSummary?'checked':''} style="width:18px;height:18px;accent-color:#5b7f6b"/>
@@ -1622,6 +1735,15 @@ function rUserMod(view=null,_=null,switchId=null){
     });
     g("signOut").onclick=fbSignOut;
     g("mailSum").onchange=()=>{cu.mailSummary=g("mailSum").checked;saveUsers();};
+    // Personal key for /api/ingest, kept on the profile (only its members can read it)
+    const setIngest=async k=>{
+      if(!db){alert('צריך חיבור לאינטרנט');return;}
+      try{await _setDoc(_doc(fdb,'profiles',cu.id),{ingestKey:k||_F.deleteField()},{merge:true});}catch(e){alert('השמירה נכשלה');return;}
+      if(k)cu.ingestKey=k;else delete cu.ingestKey;saveUsers();rUserMod('edit');
+    };
+    if(g("ingOn"))g("ingOn").onclick=()=>{const b=crypto.getRandomValues(new Uint8Array(24));setIngest([...b].map(x=>x.toString(16).padStart(2,'0')).join(''));};
+    if(g("ingOff"))g("ingOff").onclick=()=>{if(confirm('לבטל את הכתובת? הטלפון יפסיק לשלוח חיובים עד שתגדיר כתובת חדשה.'))setIngest(null);};
+    if(g("ingCopy"))g("ingCopy").onclick=async()=>{const i=g("ingUrl");try{await navigator.clipboard.writeText(i.value);}catch{i.select();document.execCommand('copy');}g("ingCopy").textContent='הועתק ✓';};
     g("remType").onchange=()=>{const once=g("remType").value==='once';g("remDay").style.display=once?'none':'';g("remDate").style.display=once?'':'none';};
     g("addRem").onclick=()=>{
       const text=(g("remText").value||"").trim();if(!text){g("remText").focus();return;}
